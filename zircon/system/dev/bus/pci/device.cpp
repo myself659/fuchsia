@@ -33,7 +33,7 @@ public:
     static zx_status_t Create(zx_device_t* parent,
                               std::unique_ptr<Config>&& cfg,
                               UpstreamNode* upstream,
-                              BusLinkInterface* bli);
+                              BusDeviceInterface* bli);
 
     // Implement ref counting, do not let derived classes override.
     PCI_IMPLEMENT_REFCOUNTED;
@@ -45,16 +45,16 @@ protected:
     DeviceImpl(zx_device_t* parent,
                std::unique_ptr<Config>&& cfg,
                UpstreamNode* upstream,
-               BusLinkInterface* bli)
-        : Device(parent, std::move(cfg), upstream, bli, false) {}
+               BusDeviceInterface* bdi)
+        : Device(parent, std::move(cfg), upstream, bdi, false) {}
 };
 
 zx_status_t DeviceImpl::Create(zx_device_t* parent,
                                std::unique_ptr<Config>&& cfg,
                                UpstreamNode* upstream,
-                               BusLinkInterface* bli) {
+                               BusDeviceInterface* bdi) {
     fbl::AllocChecker ac;
-    auto raw_dev = new (&ac) DeviceImpl(parent, std::move(cfg), upstream, bli);
+    auto raw_dev = new (&ac) DeviceImpl(parent, std::move(cfg), upstream, bdi);
     if (!ac.check()) {
         pci_errorf("Out of memory attemping to create PCIe device %s.\n", cfg->addr());
         return ZX_ERR_NO_MEMORY;
@@ -67,7 +67,7 @@ zx_status_t DeviceImpl::Create(zx_device_t* parent,
         return status;
     }
 
-    bli->LinkDevice(dev);
+    bdi->LinkDevice(dev);
     return ZX_OK;
 }
 
@@ -114,8 +114,8 @@ zx_status_t Device::CreateProxy() {
 zx_status_t Device::Create(zx_device_t* parent,
                            std::unique_ptr<Config>&& config,
                            UpstreamNode* upstream,
-                           BusLinkInterface* bli) {
-    return DeviceImpl::Create(parent, std::move(config), upstream, bli);
+                           BusDeviceInterface* bdi) {
+    return DeviceImpl::Create(parent, std::move(config), upstream, bdi);
 }
 
 zx_status_t Device::Init() {
@@ -606,7 +606,7 @@ void Device::Unplug() {
     // everything in the command register
     ZX_DEBUG_ASSERT(disabled_);
     upstream_->UnlinkDevice(this);
-    bli_->UnlinkDevice(this);
+    bdi_->UnlinkDevice(this);
     plugged_in_ = false;
     pci_tracef("device [%s] unplugged\n", cfg_->addr());
 }

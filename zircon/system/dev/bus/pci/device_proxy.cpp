@@ -225,7 +225,15 @@ zx_status_t DeviceProxy::PciGetAuxdata(const char* args,
 }
 
 zx_status_t DeviceProxy::PciGetBti(uint32_t index, zx::bti* out_bti) {
-    DEVICE_PROXY_UNIMPLEMENTED;
+    PciRpcMsg req = {};
+    PciRpcMsg resp = {};
+    req.bti_index = index;
+    zx_handle_t handle;
+    zx_status_t st = RpcRequest(PCI_OP_GET_BTI, &handle, &req, &resp);
+    if (st == ZX_OK) {
+        out_bti->reset(handle);
+    }
+    return st;
 }
 
 } // namespace pci
