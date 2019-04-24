@@ -47,9 +47,149 @@ rustc_library("netstack_fidl_integration") {
   ]
 }
 
+static_library("socket_test_util") {
+  include_dirs = [ "//vendor/gvisor" ]
+
+  testonly = true
+  sources = [
+    "//vendor/gvisor/test/syscalls/linux/socket_test_util.cc",
+    "//vendor/gvisor/test/syscalls/linux/socket_test_util.h",
+  ]
+
+  public_deps = [
+    #     "//net/util",  # gvisor:google-only(Internal)
+    "//third_party/abseil-cpp/absl/strings:str_format",
+    "//third_party/googletest:gtest",
+
+    #     "//third_party/absl/memory",
+    #     "//third_party/absl/strings",
+    #     "//third_party/absl/time",
+    #     "//third_party/golang/gvisor/test/util:file_descriptor",
+    #     "//third_party/golang/gvisor/test/util:posix_error",
+    #     "//third_party/golang/gvisor/test/util:temp_path",
+    #     "//third_party/golang/gvisor/test/util:test_util",
+    #     "//third_party/golang/gvisor/test/util:thread_util",
+  ]
+}
+
+static_library("ip_socket_test_util") {
+  include_dirs = [ "//vendor/gvisor" ]
+
+  testonly = true
+  sources = [
+    "//vendor/gvisor/test/syscalls/linux/ip_socket_test_util.cc",
+    "//vendor/gvisor/test/syscalls/linux/ip_socket_test_util.h",
+  ]
+
+  deps = [
+    ":socket_test_util",
+    #     "//third_party/absl/strings",
+  ]
+}
+
+test("readv_socket_test") {
+  testonly = true
+  sources = [
+    "//vendor/gvisor/test/syscalls/linux/file_base.h",
+    "//vendor/gvisor/test/syscalls/linux/readv_common.cc",
+    "//vendor/gvisor/test/syscalls/linux/readv_common.h",
+    "//vendor/gvisor/test/syscalls/linux/readv_socket.cc",
+  ]
+}
+
+# "//vendor/gvisor/test/syscalls/linux/socket_abstract.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_blocking.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_filesystem.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_generic.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_generic.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_inet_loopback.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_loopback_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_generic.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_generic.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_generic_loopback.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_loopback.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_loopback_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_loopback_nonblock.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_tcp_udp_generic.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_udp_generic.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_udp_generic.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_udp_loopback.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_udp_loopback_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ip_udp_loopback_nonblock.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_tcp_unbound_external_networking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_tcp_unbound_external_networking.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_tcp_unbound_external_networking_test.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_udp_unbound.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_udp_unbound.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_udp_unbound_external_networking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_udp_unbound_external_networking.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_udp_unbound_external_networking_test.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_ipv4_udp_unbound_loopback.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_non_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_non_blocking.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_non_stream.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_non_stream.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_non_stream_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_non_stream_blocking.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_stream.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_stream.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_stream_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_stream_blocking.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_stream_nonblock.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_stream_nonblock.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_abstract.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_abstract_nonblock.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_blocking_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_dgram.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_dgram.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_dgram_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_dgram_non_blocking.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_domain.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_filesystem.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_filesystem_nonblock.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_non_stream.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_non_stream.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_non_stream_blocking_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_pair.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_pair_nonblock.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_seqpacket.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_seqpacket.h",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_seqpacket_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_stream.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_stream_blocking_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_stream_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_stream_nonblock_local.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_unbound_abstract.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_unbound_dgram.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_unbound_filesystem.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_unbound_seqpacket.cc",
+# "//vendor/gvisor/test/syscalls/linux/socket_unix_unbound_stream.cc",
+# "//vendor/gvisor/test/syscalls/linux/tcp_socket.cc",
+# "//vendor/gvisor/test/syscalls/linux/udp_socket.cc",
+# "//vendor/gvisor/test/syscalls/linux/unix_domain_socket_test_util.cc",
+# "//vendor/gvisor/test/syscalls/linux/unix_domain_socket_test_util.h",
+
+# "//third_party/abseil-cpp/absl",
+# "//third_party/abseil-cpp/absl/base:core_headers",
+# "//third_party/abseil-cpp/absl/base:endian",
+# "//third_party/abseil-cpp/absl/memory",
+# "//third_party/abseil-cpp/absl/strings",
+# "//third_party/abseil-cpp/absl/time",
+# "//third_party/gflags",
+# "//third_party/googletest:gmock",
+
 test("netstack_bsdsocket_c_api_test") {
   if (is_linux || is_fuchsia) {
     sources = [
+      # "//vendor/gvisor/test/syscalls/linux/raw_socket_ipv4.cc",
+      # "//vendor/gvisor/test/syscalls/linux/sendfile_socket.cc",
+      # "//vendor/gvisor/test/syscalls/linux/socket_netdevice.cc",
+      # "//vendor/gvisor/test/syscalls/linux/socket_netlink_route.cc",
+      # "//vendor/gvisor/test/syscalls/linux/socket_netlink_util.cc",
+      # "//vendor/gvisor/test/syscalls/linux/socket_netlink_util.h",
       "bsdsocket_test.cc",
       "util.cc",
       "util.h",
