@@ -4,9 +4,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT
-
-#ifndef ZIRCON_SYSTEM_DEV_BUS_PCI_BRIDGE_H_
-#define ZIRCON_SYSTEM_DEV_BUS_PCI_BRIDGE_H_
+#pragma once
 
 #include "allocation.h"
 #include "common.h"
@@ -87,5 +85,3 @@ private:
 };
 
 } // namespace pci
-
-#endif // ZIRCON_SYSTEM_DEV_BUS_PCI_BRIDGE_H_

@@ -3,9 +3,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT
-
-#ifndef ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_FAKES_FAKE_PCIROOT_H_
-#define ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_FAKES_FAKE_PCIROOT_H_
+#pragma once
 
 #include "fake_ecam.h"
 #include <ddktl/protocol/pciroot.h>
@@ -140,5 +138,3 @@ private:
     FakeEcam ecam_;
     int32_t allocation_cnt_ = 0;
 };
-
-#endif  // ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_FAKES_FAKE_PCIROOT_H_

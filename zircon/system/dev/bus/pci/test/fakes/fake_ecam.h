@@ -3,9 +3,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT
-
-#ifndef ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_FAKES_FAKE_ECAM_H_
-#define ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_FAKES_FAKE_ECAM_H_
+#pragma once
 
 #include "../../common.h"
 
@@ -223,6 +221,13 @@ static_assert(sizeof(FakeDeviceConfig) == 4096, "Bad size for FakeDeviceConfig")
 // and poke at by the PCI bus driver.
 class FakeEcam {
 public:
+    // Allow assign / move.
+    FakeEcam(FakeEcam&&) = default;
+    FakeEcam& operator=(FakeEcam&&) = default;
+    // Disallow copy.
+    FakeEcam(const FakeEcam&) = delete;
+    FakeEcam& operator=(const FakeEcam&) = delete;
+
     static zx_status_t Create(uint8_t bus_start,
                               uint8_t bus_end,
                               std::optional<FakeEcam>* out_ecam) {
@@ -240,7 +245,7 @@ public:
             return st;
         }
 
-        *out_ecam = FakeEcam(std::move(*mmio), bus_start, bus_end);
+        *out_ecam = FakeEcam(std::move(*mmio), bus_start, bus_end, cnt);
         return ZX_OK;
     }
 
@@ -249,9 +254,10 @@ public:
         ZX_ASSERT(bus_id >= bus_start_);
         ZX_ASSERT(bus_id <= bus_end_);
 
-        size_t offset = bus_id * PCI_MAX_DEVICES_PER_BUS * PCI_MAX_FUNCTIONS_PER_DEVICE;
+        size_t offset = bus_id * PCI_MAX_FUNCTIONS_PER_BUS;
         offset += dev_id * PCI_MAX_FUNCTIONS_PER_DEVICE;
         offset += func_id;
+        ZX_ASSERT(offset < config_cnt_);
         return configs_[offset];
     }
 
@@ -259,41 +265,31 @@ public:
         return get(bdf.bus_id, bdf.device_id, bdf.function_id);
     }
 
-    // Allow move.
-    FakeEcam(FakeEcam&&) = default;
-    FakeEcam& operator=(FakeEcam&&) = default;
-    // Disallow copy.
-    FakeEcam(const FakeEcam&) = delete;
-    FakeEcam& operator=(const FakeEcam&) = delete;
-
     uint8_t bus_start() const { return bus_start_; }
     uint8_t bus_end() const { return bus_end_; }
-    zx_status_t get_vmo(zx::vmo* vmo) const {
-        return mmio_.get_vmo()->clone(0, 0, mmio_.get_size(), vmo);
-    }
-    ddk::MmioBuffer& get_mmio() { return mmio_; }
+    ddk::MmioBuffer& mmio() { return mmio_; }
+
     void reset() {
         // Memset optimizations cause faults on uncached memory, so zero out
         // the memory by hand.
         assert(mmio_.get_size() % ZX_PAGE_SIZE == 0);
         assert(mmio_.get_size() % sizeof(uint64_t) == 0);
         assert(reinterpret_cast<uintptr_t>(mmio_.get()) % sizeof(uint64_t) == 0);
-        auto ptr_base = reinterpret_cast<uintptr_t>(mmio_.get());
-        for (auto ptr = ptr_base; ptr < ptr_base + mmio_.get_size(); ptr += sizeof(uint64_t)) {
-            *reinterpret_cast<volatile uint64_t*>(ptr) = 0;
+        for (size_t i = 0; i < mmio_.get_size(); i += sizeof(uint64_t)) {
+            mmio_.Write<uint64_t>(0, i);
         }
 
         // Mark all vendor & device ids as invalid so that only the devices
         // explicitly configured will be considered in a proper bus scan.
-        for (size_t i = 0; i < mmio_.get_size() / sizeof(FakeDeviceConfig); i++) {
+        for (size_t i = 0; i < config_cnt_; i++) {
             configs_[i].device.set_vendor_id(0xffff).set_device_id(0xffff);
         }
     }
 
 private:
-    FakeEcam(ddk::MmioBuffer&& mmio, uint8_t bus_start, uint8_t bus_end)
+    FakeEcam(ddk::MmioBuffer&& mmio, uint8_t bus_start, uint8_t bus_end, size_t cnt)
         : bus_start_(bus_start), bus_end_(bus_end), mmio_(std::move(mmio)),
-          configs_(static_cast<FakeDeviceConfig*>(mmio_.get())) {
+          configs_(static_cast<FakeDeviceConfig*>(mmio_.get())), config_cnt_(cnt) {
         reset();
     }
 
@@ -301,6 +297,5 @@ private:
     uint8_t bus_end_;
     ddk::MmioBuffer mmio_;
     FakeDeviceConfig* configs_;
+    size_t config_cnt_;
 };
-
-#endif  // ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_FAKES_FAKE_ECAM_H_

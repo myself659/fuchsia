@@ -1,10 +1,10 @@
 // Copyright 2019 The Fuchsia Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-#ifndef ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_DRIVER_FAKE_BUS_DRIVER_H_
-#define ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_DRIVER_FAKE_BUS_DRIVER_H_
+#pragma once
 
 #include "../fakes/fake_bus.h"
+#include "../fakes/fake_config.h"
 #include "../fakes/fake_pciroot.h"
 #include "../fakes/fake_upstream_node.h"
 #include "driver_tests.h"
@@ -18,8 +18,9 @@ class FakeBusDriver;
 using FakeBusDriverType = ddk::Device<FakeBusDriver>;
 class FakeBusDriver : public FakeBusDriverType {
 public:
+    ~FakeBusDriver() = default;
     static zx_status_t Create(zx_device_t* parent, const char* name);
-    zx_status_t CreateDevice(pci_bdf_t bdf);
+    zx_status_t CreateDevice(pci_bdf_t bdf, uint8_t* base_cfg, size_t base_cfg_size);
 
     FakePciType0Config& GetDevice(pci_bdf_t bdf) { return pciroot().ecam().get(bdf).device; }
     FakePciType1Config& GetBridge(pci_bdf_t bdf) { return pciroot().ecam().get(bdf).bridge; }
@@ -43,5 +44,3 @@ private:
     const pci_bdf_t test_bdf_ = {PCI_TEST_BUS_ID, PCI_TEST_DEV_ID, PCI_TEST_FUNC_ID};
 };
 } // namespace pci
-
-#endif  // ZIRCON_SYSTEM_DEV_BUS_PCI_TEST_DRIVER_FAKE_BUS_DRIVER_H_

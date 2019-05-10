@@ -455,8 +455,8 @@ static bool reg_unshifted_field_test() {
     public:
         DEF_UNSHIFTED_FIELD(31, 4, address);
         DEF_BIT(3, is_prefetchable);
-        DEF_RSVDZ_BIT(2);
-        DEF_BIT(1, is_64bit);
+        DEF_BIT(2, is_64bit);
+        DEF_RSVDZ_BIT(1);
         DEF_BIT(0, is_io_space);
 
         static auto Get() { return hwreg::RegisterAddr<TestPciBar32>(0); }
