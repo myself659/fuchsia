@@ -1,4 +1,4 @@
-// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Copyright 2019 The Fuchsia Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,30 +28,34 @@ namespace aml_usb_phy {
 zx_status_t AmlUsbPhy::InitPhy() {
     auto* mmio = &*usbphy_mmio_;
 
-#if 0
-// peripheral
-    volatile uint32_t* P_RESET1_REGISTER       = (uint32_t *)((uint8_t*)preset_mmio_->get() + 0x408);
-    volatile uint32_t* P_AO_RTC_ALT_CLK_CNTL0  = (uint32_t *)((uint8_t*)aobus_mmio_->get() + (0x25 << 2));
-    volatile uint32_t* P_AO_RTI_PWR_CNTL_REG0  = (uint32_t *)((uint8_t*)aobus_mmio_->get() + (0x04 << 2));
+    for (int i = 0; i < 3; i++) {
+        if (i == 1) {
+            // Configure port 1 for peripheral role
+           U2P_R0::Get(i)
+                .ReadFrom(mmio)
+                .set_fsel(2)
+                .set_por(1)
+                .set_dmpulldown(0)
+                .set_dppulldown(0)
+                .set_idpullup(1)
+                .WriteTo(mmio);
+        } else {
+            U2P_R0::Get(i)
+                .ReadFrom(mmio)
+                .set_por(1)
+                .set_dmpulldown(1)
+                .set_dppulldown(1)
+                .set_idpullup(i == 1)
+                .WriteTo(mmio);
+        }
 
-	*P_RESET1_REGISTER = (1<<2);
+        zx_nanosleep(zx_deadline_after(ZX_USEC(500)));
 
-	*P_AO_RTC_ALT_CLK_CNTL0 |= (1<<31)|(1<<30);
-	*P_AO_RTI_PWR_CNTL_REG0 |= (4<<10);
-
-
-    U2P_R0::Get(1)
-        .ReadFrom(mmio)
-        .set_fsel(2)
-        .set_por(1)
-        .set_dmpulldown(0)
-        .set_dppulldown(0)
-        .WriteTo(mmio);
-
-    U2P_R0::Get(1)
-        .ReadFrom(mmio)
-        .set_por(0)
-        .WriteTo(mmio);
+        U2P_R0::Get(i)
+            .ReadFrom(mmio)
+            .set_por(0)
+            .WriteTo(mmio);
+    }
 
     USB_R0::Get()
         .ReadFrom(mmio)
@@ -63,26 +67,6 @@ zx_status_t AmlUsbPhy::InitPhy() {
         .set_p21_sleepm0(1)
         .WriteTo(mmio);
 
-#else
-    // amlogic_new_usb2_init
-    for (int i = 0; i < 4; i++) {
-        U2P_R0::Get(i)
-            .ReadFrom(mmio)
-            .set_por(1)
-            .set_dmpulldown(1)
-            .set_dppulldown(1)
-            .set_idpullup(i == 1)
-            .WriteTo(mmio);
-
-        zx_nanosleep(zx_deadline_after(ZX_USEC(500)));
-
-        U2P_R0::Get(i)
-            .ReadFrom(mmio)
-            .set_por(0)
-            .WriteTo(mmio);
-    }
-
-    // amlogic_new_usb3_init
     USB_R1::Get()
         .ReadFrom(mmio)
         .set_u3h_fladj_30mhz_reg(0x20)
@@ -94,9 +78,6 @@ zx_status_t AmlUsbPhy::InitPhy() {
         .set_iddig_en1(1)
         .set_iddig_th(255)
         .WriteTo(mmio);
-#endif
-
-    zx_nanosleep(zx_deadline_after(ZX_USEC(500)));
 
     return ZX_OK;
 }
@@ -119,7 +100,6 @@ zx_status_t AmlUsbPhy::Create(void* ctx, zx_device_t* parent) {
 }
 
 zx_status_t AmlUsbPhy::AddXhciDevice() {
-printf("XXXX %s\n", __func__);
     if (xhci_device_ != nullptr) {
         zxlogf(ERROR, "AmlUsbPhy::AddXhciDevice: device already exists!\n");
         return ZX_ERR_BAD_STATE;
@@ -141,7 +121,6 @@ printf("XXXX %s\n", __func__);
 }
 
 zx_status_t AmlUsbPhy::RemoveXhciDevice() {
-printf("XXXX %s\n", __func__);
     if (xhci_device_ == nullptr) {
         zxlogf(ERROR, "AmlUsbPhy::RemoveXhciDevice: device does not exist!\n");
         return ZX_ERR_BAD_STATE;
@@ -155,7 +134,6 @@ printf("XXXX %s\n", __func__);
 }
 
 zx_status_t AmlUsbPhy::AddDwc2Device() {
-printf("XXXX %s\n", __func__);
     if (dwc2_device_ != nullptr) {
         zxlogf(ERROR, "AmlUsbPhy::AddDwc2Device: device already exists!\n");
         return ZX_ERR_BAD_STATE;
@@ -177,7 +155,6 @@ printf("XXXX %s\n", __func__);
 }
 
 zx_status_t AmlUsbPhy::RemoveDwc2Device() {
-printf("XXXX %s\n", __func__);
     if (dwc2_device_ == nullptr) {
         zxlogf(ERROR, "AmlUsbPhy::RemoveDwc2Device: device does not exist!\n");
         return ZX_ERR_BAD_STATE;
@@ -200,14 +177,6 @@ zx_status_t AmlUsbPhy::Init() {
     if (status != ZX_OK) {
         return status;
     }
-    status = pdev_.MapMmio(1, &preset_mmio_);
-    if (status != ZX_OK) {
-        return status;
-    }
-    status = pdev_.MapMmio(2, &aobus_mmio_);
-    if (status != ZX_OK) {
-        return status;
-    }
 
     status = InitPhy();
     if (status != ZX_OK) {
@@ -225,10 +194,6 @@ zx_status_t AmlUsbPhy::Init() {
 }
 
 void AmlUsbPhy::DdkUnbind() {
-    // Exit IrqThread.
-    irq_.destroy();
-    thrd_join(irq_thread_, nullptr);
-
     RemoveXhciDevice();
     RemoveDwc2Device();
     DdkRemove();

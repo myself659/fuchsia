@@ -41,6 +41,7 @@ private:
     DISALLOW_COPY_ASSIGN_AND_MOVE(AmlUsbPhy);
 
     zx_status_t InitPhy();
+    void SetMode(bool host);
 
     zx_status_t AddXhciDevice();
     zx_status_t RemoveXhciDevice();
@@ -48,15 +49,9 @@ private:
     zx_status_t RemoveDwc2Device();
 
     zx_status_t Init();
-    int IrqThread();
 
     ddk::PDev pdev_;
     std::optional<ddk::MmioBuffer> usbphy_mmio_;
-    std::optional<ddk::MmioBuffer> preset_mmio_;
-    std::optional<ddk::MmioBuffer> aobus_mmio_;
-
-    zx::interrupt irq_;
-    thrd_t irq_thread_;
 
     // Device node for binding XHCI driver.
     std::unique_ptr<XhciDevice> xhci_device_;

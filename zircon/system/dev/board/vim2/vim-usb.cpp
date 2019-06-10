@@ -25,14 +25,6 @@ static const pbus_mmio_t usb_phy_mmios[] = {
         .base = S912_USB_PHY_BASE,
         .length = S912_USB_PHY_LENGTH,
     },
-    {
-        .base = S912_PRESET_BASE,
-        .length = S912_PRESET_LENGTH,
-    },
-    {
-        .base = S912_AOBUS_BASE,
-        .length = S912_AOBUS_LENGTH,
-    },
 };
 
 static const pbus_mmio_t xhci_mmios[] = {
