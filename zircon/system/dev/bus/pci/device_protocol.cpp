@@ -254,7 +254,34 @@ zx_status_t Device::RpcGetDeviceInfo(const zx::unowned_channel& ch) {
 }
 
 zx_status_t Device::RpcGetNextCapability(const zx::unowned_channel& ch) {
-    RPC_UNIMPLEMENTED;
+    response_.cap.id = request_.cap.id;
+    response_.cap.is_extended = request_.cap.is_extended;
+    response_.cap.is_first = request_.cap.is_first;
+
+    // Scan for the capability type requested, returning the first capability
+    // found after we've seen the capability owning the previous offset.  We
+    // can't scan entirely based on offset being >= than a given base because
+    // capabilities pointers can point backwards in config space as long as the
+    // structures are valid.
+    zx_status_t st = ZX_ERR_NOT_FOUND;
+    bool found_prev = (request_.cap.is_first) ? true : false;
+    uint8_t scan_offset = static_cast<uint8_t>(request_.cap.offset);
+
+    for (auto& cap : capabilities()) {
+        if (found_prev) {
+            if (cap.id() == request_.cap.id) {
+                response_.cap.offset = cap.base();
+                st = ZX_OK;
+                break;
+            }
+        } else {
+            if (cap.base() == scan_offset) {
+                found_prev = true;
+            }
+        }
+    }
+
+    return RpcReply(ch, st);
 }
 
 zx_status_t Device::RpcMapInterrupt(const zx::unowned_channel& ch) {

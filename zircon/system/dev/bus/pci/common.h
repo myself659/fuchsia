@@ -9,7 +9,7 @@
 
 // Switch for easy enabling of output during unit tests where we
 // won't have driver log values set.
-#if 1
+#if 0
 #define pci_tracef(...) zxlogf(TRACE, "pci: " __VA_ARGS__)
 #define pci_errorf(...) zxlogf(ERROR, "pci: " __VA_ARGS__)
 #define pci_infof(...) zxlogf(INFO, "pci: " __VA_ARGS__)

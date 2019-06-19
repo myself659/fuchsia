@@ -261,6 +261,53 @@ TEST_F(PciProtocolTests, GetBar5) {
     ASSERT_EQ(info.size, kTestDeviceBars[5].size);
 }
 
+TEST_F(PciProtocolTests, GetCapabilities) {
+    uint8_t offsetA = 0;
+    uint8_t offsetB = 0;
+    uint8_t val8 = 0;
+    // First Power Management Capability is at 0x60.
+    ASSERT_OK(pci().GetFirstCapability(0x1, &offsetA));
+    ASSERT_EQ(0x60, offsetA);
+    ASSERT_OK(pci().ConfigRead8(offsetA, &val8));
+    ASSERT_EQ(0x1, val8);
+
+    // Second Power Management Capability is at 0xA0.
+    ASSERT_OK(pci().GetNextCapability(0x1, offsetA, &offsetB));
+    ASSERT_EQ(0xA0, offsetB);
+    ASSERT_OK(pci().ConfigRead8(offsetB, &val8));
+    ASSERT_EQ(0x1, val8);
+    
+    // First Pci Express Capability is at 0x78.
+    ASSERT_OK(pci().GetFirstCapability(0x10, &offsetA));
+    ASSERT_EQ(0x78, offsetA);
+    ASSERT_OK(pci().ConfigRead8(offsetA, &val8));
+    ASSERT_EQ(0x10, val8);
+    
+    // First Vendor Capability is at 0xC4
+    ASSERT_OK(pci().GetFirstCapability(0x9, &offsetA));
+    ASSERT_EQ(0xC4, offsetA);
+    ASSERT_OK(pci().ConfigRead8(offsetA, &val8));
+    ASSERT_EQ(0x9, val8);
+    
+    // Second Vendor Capability is at 0xC8
+    ASSERT_OK(pci().GetNextCapability(0x9, offsetA, &offsetB));
+    ASSERT_EQ(0xC8, offsetB);
+    ASSERT_OK(pci().ConfigRead8(offsetB, &val8));
+    ASSERT_EQ(0x9, val8);
+    
+    // Third Vendor Capability is at 0xD0
+    ASSERT_OK(pci().GetNextCapability(0x9, offsetB, &offsetA));
+    ASSERT_EQ(0xD0, offsetA);
+    ASSERT_OK(pci().ConfigRead8(offsetA, &val8));
+    ASSERT_EQ(0x9, val8);
+    
+    // Fourth Vendor Capability is at 0xE8
+    ASSERT_OK(pci().GetNextCapability(0x9, offsetA, &offsetB));
+    ASSERT_EQ(0xE8, offsetB);
+    ASSERT_OK(pci().ConfigRead8(offsetB, &val8));
+    ASSERT_EQ(0x9, val8);
+}
+
 TEST_F(PciProtocolTests, GetDeviceInfo) {
     uint16_t vendor_id;
     uint16_t device_id;
