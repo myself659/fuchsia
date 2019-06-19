@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "asix-88179.h"
+#include "asix-88179-regs.h"
 
 #define READ_REQ_COUNT 8
 #define WRITE_REQ_COUNT 8
@@ -49,6 +50,7 @@
 #define ETHMAC_RECV_DELAY 10
 #define ETHMAC_INITIAL_TRANSMIT_DELAY 15
 #define ETHMAC_INITIAL_RECV_DELAY 0
+
 
 typedef struct {
     zx_device_t* device;
@@ -232,7 +234,7 @@ static zx_status_t ax88179_configure_medium_mode(ax88179_t* eth) {
         zxlogf(ERROR, "ax88179_read_mac to %#x failed: %d\n", AX88179_MAC_PLSR, status);
         return status;
     }
-    status = ax88179_configure_bulk_in(eth, data & 0xff);
+    status = ax88179_configure_bulk_in(eth, static_cast<uint8_t>(data & 0xff));
 
     return status;
 }
@@ -246,7 +248,7 @@ static zx_status_t ax88179_recv(ax88179_t* eth, usb_request_t* request) {
     }
 
     uint8_t* read_data;
-    zx_status_t status = usb_request_mmap(request, (void*)&read_data);
+    zx_status_t status = usb_request_mmap(request, reinterpret_cast<void**>(&read_data));
     if (status != ZX_OK) {
         zxlogf(ERROR, "usb_request_mmap failed: %d\n", status);
         return status;
@@ -360,6 +362,7 @@ static zx_status_t ax88179_append_to_tx_req(usb_protocol_t* usb, usb_request_t* 
     }
     ax88179_tx_hdr_t hdr = {
         .tx_len = htole16(netbuf->data_size),
+        .unused = {}, //TODO - Jamie check
     };
     usb_request_copy_to(req, &hdr, sizeof(hdr), offset);
     usb_request_copy_to(req, netbuf->data_buffer, netbuf->data_size, offset + sizeof(hdr));
@@ -491,10 +494,18 @@ static zx_status_t ax88179_queue_tx(void* ctx, uint32_t options, ethmac_netbuf_t
         return ZX_ERR_INVALID_ARGS;
     }
 
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
 
     mtx_lock(&eth->tx_lock);
     ZX_DEBUG_ASSERT(eth->usb_tx_in_flight <= MAX_TX_IN_FLIGHT);
+
+    usb_request_complete_t complete = {
+        .callback = ax88179_write_complete,
+        .ctx = eth,
+    };
+    zx_status_t status;
+    usb_request_t* req = NULL;
+    usb_req_internal_t* req_int = NULL;
 
     zx_nanosleep(zx_deadline_after(ZX_USEC(eth->tx_endpoint_delay)));
     // If we already have entries in our pending_netbuf list we should put this one there, too.
@@ -504,9 +515,6 @@ static zx_status_t ax88179_queue_tx(void* ctx, uint32_t options, ethmac_netbuf_t
     }
 
     // Find the last entry in the pending_usb_tx list
-    zx_status_t status;
-    usb_request_t* req = NULL;
-    usb_req_internal_t* req_int = NULL;
     if (list_is_empty(&eth->pending_usb_tx)) {
         zxlogf(DEBUG1, "ax88179: no pending reqs, getting free write req\n");
         req = usb_req_list_remove_head(&eth->free_write_reqs, eth->parent_req_size);
@@ -553,10 +561,7 @@ static zx_status_t ax88179_queue_tx(void* ctx, uint32_t options, ethmac_netbuf_t
     req = usb_req_list_remove_head(&eth->pending_usb_tx, eth->parent_req_size);
     zxlogf(DEBUG1, "ax88179: queuing request (%p) of length %lu, %u outstanding\n",
              req, req->header.length, eth->usb_tx_in_flight);
-    usb_request_complete_t complete = {
-        .callback = ax88179_write_complete,
-        .ctx = eth,
-    };
+
     usb_request_queue(&eth->usb, req, &complete);
     eth->usb_tx_in_flight++;
     ZX_DEBUG_ASSERT(eth->usb_tx_in_flight <= MAX_TX_IN_FLIGHT);
@@ -572,7 +577,7 @@ bufs_full:
 }
 
 static void ax88179_unbind(void* ctx) {
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
     device_remove(eth->device);
 }
 
@@ -593,7 +598,7 @@ static void ax88179_free(ax88179_t* eth) {
 }
 
 static void ax88179_release(void* ctx) {
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
 
     // wait for thread to finish before cleaning up
     thrd_join(eth->thread, NULL);
@@ -601,15 +606,17 @@ static void ax88179_release(void* ctx) {
     ax88179_free(eth);
 }
 
-static zx_protocol_device_t ax88179_device_proto = {
-    .version = DEVICE_OPS_VERSION,
-    .unbind = ax88179_unbind,
-    .release = ax88179_release,
-};
+static zx_protocol_device_t ax88179_device_proto = []() {
+    zx_protocol_device_t dev = {};
+    dev.version = DEVICE_OPS_VERSION;
+    dev.unbind = ax88179_unbind;
+    dev.release = ax88179_release;
 
+    return dev;
+}();
 
 static zx_status_t ax88179_query(void* ctx, uint32_t options, ethmac_info_t* info) {
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
 
     if (options) {
         return ZX_ERR_INVALID_ARGS;
@@ -624,14 +631,14 @@ static zx_status_t ax88179_query(void* ctx, uint32_t options, ethmac_info_t* inf
 }
 
 static void ax88179_stop(void* ctx) {
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
     mtx_lock(&eth->mutex);
     eth->ifc.ops = NULL;
     mtx_unlock(&eth->mutex);
 }
 
 static zx_status_t ax88179_start(void* ctx, const ethmac_ifc_protocol_t* ifc) {
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
     zx_status_t status = ZX_OK;
 
     mtx_lock(&eth->mutex);
@@ -656,7 +663,7 @@ static zx_status_t ax88179_twiddle_rcr_bit(ax88179_t* eth, uint16_t bit, bool on
     if (on) {
         rcr_bits |= bit;
     } else {
-        rcr_bits &= ~bit;
+        rcr_bits &= static_cast<uint16_t>(~bit);
     }
     status = ax88179_write_mac(eth, AX88179_MAC_RCR, 2, &rcr_bits);
     if (status != ZX_OK) {
@@ -680,7 +687,7 @@ static void set_filter_bit(const uint8_t* mac, uint8_t* filter) {
     // Invert the seed (standard is ~0) and output to get usable bits.
     uint32_t crc = ~crc32(0, mac, ETH_MAC_SIZE);
     uint8_t reverse[8] = {0, 4, 2, 6, 1, 5, 3, 7};
-    filter[reverse[crc & 7]] |= 1 << reverse[(crc >> 3) & 7];
+    filter[reverse[crc & 7]] |= static_cast<uint8_t>(1 << reverse[(crc >> 3) & 7]);
 }
 
 static zx_status_t ax88179_set_multicast_filter(ax88179_t* eth, int32_t n_addresses,
@@ -711,7 +718,7 @@ static zx_status_t ax88179_set_multicast_filter(ax88179_t* eth, int32_t n_addres
 static void ax88179_dump_regs(ax88179_t* eth);
 static zx_status_t ax88179_set_param(void *ctx, uint32_t param, int32_t value, const void* data,
                                      size_t data_size) {
-    ax88179_t* eth = ctx;
+    ax88179_t* eth = static_cast<ax88179_t*>(ctx);
     zx_status_t status = ZX_OK;
 
     mtx_lock(&eth->mutex);
@@ -737,13 +744,16 @@ static zx_status_t ax88179_set_param(void *ctx, uint32_t param, int32_t value, c
     return status;
 }
 
-static ethmac_protocol_ops_t ethmac_ops = {
-    .query = ax88179_query,
-    .stop = ax88179_stop,
-    .start = ax88179_start,
-    .queue_tx = ax88179_queue_tx,
-    .set_param = ax88179_set_param,
-};
+static ethmac_protocol_ops_t ethmac_ops = []() {
+    ethmac_protocol_ops_t ops = {};
+    ops.query = ax88179_query;
+    ops.stop = ax88179_stop;
+    ops.start = ax88179_start;
+    ops.queue_tx = ax88179_queue_tx;
+    ops.set_param = ax88179_set_param;
+
+    return ops;
+}();
 
 
 #define READ_REG(r, len) \
@@ -772,9 +782,19 @@ static void ax88179_dump_regs(ax88179_t* eth) {
 }
 
 static int ax88179_thread(void* arg) {
-    ax88179_t* eth = (ax88179_t*)arg;
+    ax88179_t* eth = static_cast<ax88179_t*>(arg);
 
     uint32_t data = 0;
+    uint64_t count = 0;
+    usb_request_t* req = eth->interrupt_req;
+
+    usb_request_complete_t complete = {
+        .callback = ax88179_interrupt_complete,
+        .ctx = eth,
+    };
+
+    uint16_t phy_data = 0;
+
     // Enable embedded PHY
     zx_status_t status = ax88179_write_mac(eth, AX88179_MAC_EPPRCR, 2, &data);
     if (status < 0) {
@@ -857,7 +877,6 @@ static int ax88179_thread(void* arg) {
     // TODO: PHY LED
 
     // PHY auto-negotiation
-    uint16_t phy_data = 0;
     status = ax88179_read_phy(eth, AX88179_PHY_BMCR, &phy_data);
     if (status < 0) {
         zxlogf(ERROR, "ax88179_read_phy to %#x failed: %d\n", AX88179_PHY_BMCR, status);
@@ -898,13 +917,6 @@ static int ax88179_thread(void* arg) {
 
     // Make the device visible
     device_make_visible(eth->device);
-
-    uint64_t count = 0;
-    usb_request_t* req = eth->interrupt_req;
-    usb_request_complete_t complete = {
-        .callback = ax88179_interrupt_complete,
-        .ctx = eth,
-    };
 
     while (true) {
         sync_completion_reset(&eth->completion);
@@ -950,8 +962,10 @@ static zx_status_t ax88179_bind(void* ctx, zx_device_t* device) {
     uint8_t bulk_in_addr = 0;
     uint8_t bulk_out_addr = 0;
     uint8_t intr_addr = 0;
+    device_add_args_t args = {};
+    int ret = 0;
 
-   usb_endpoint_descriptor_t* endp = usb_desc_iter_next_endpoint(&iter);
+    usb_endpoint_descriptor_t* endp = usb_desc_iter_next_endpoint(&iter);
     while (endp) {
         if (usb_ep_direction(endp) == USB_ENDPOINT_OUT) {
             if (usb_ep_type(endp) == USB_ENDPOINT_BULK) {
@@ -973,7 +987,7 @@ static zx_status_t ax88179_bind(void* ctx, zx_device_t* device) {
         return ZX_ERR_NOT_SUPPORTED;
     }
 
-    ax88179_t* eth = calloc(1, sizeof(ax88179_t));
+    ax88179_t* eth = static_cast<ax88179_t*>(calloc(1, sizeof(ax88179_t)));
     if (!eth) {
         zxlogf(ERROR, "Not enough memory for ax88179_t\n");
         return ZX_ERR_NO_MEMORY;
@@ -1031,15 +1045,13 @@ static zx_status_t ax88179_bind(void* ctx, zx_device_t* device) {
     */
 
     // Create the device
-    device_add_args_t args = {
-        .version = DEVICE_ADD_ARGS_VERSION,
-        .name = "ax88179",
-        .ctx = eth,
-        .ops = &ax88179_device_proto,
-        .flags = DEVICE_ADD_INVISIBLE,
-        .proto_id = ZX_PROTOCOL_ETHMAC,
-        .proto_ops = &ethmac_ops,
-    };
+    args.version = DEVICE_ADD_ARGS_VERSION;
+    args.name = "ax88179";
+    args.ctx = eth;
+    args.ops = &ax88179_device_proto;
+    args.flags = DEVICE_ADD_INVISIBLE;
+    args.proto_id = ZX_PROTOCOL_ETHMAC;
+    args.proto_ops = &ethmac_ops;
 
     status = device_add(eth->usb_device, &args, &eth->device);
     if (status < 0) {
@@ -1048,7 +1060,7 @@ static zx_status_t ax88179_bind(void* ctx, zx_device_t* device) {
     }
 
 
-    int ret = thrd_create_with_name(&eth->thread, ax88179_thread, eth, "ax88179_thread");
+    ret = thrd_create_with_name(&eth->thread, ax88179_thread, eth, "ax88179_thread");
     if (ret != thrd_success) {
         device_remove(eth->device);
         return ZX_ERR_BAD_STATE;
@@ -1061,10 +1073,13 @@ fail:
     return status;
 }
 
-static zx_driver_ops_t ax88179_driver_ops = {
-    .version = DRIVER_OPS_VERSION,
-    .bind = ax88179_bind,
-};
+static zx_driver_ops_t ax88179_driver_ops = [](){
+    zx_driver_ops_t ops = {};
+    ops.version = DRIVER_OPS_VERSION;
+    ops.bind = ax88179_bind;
+
+    return ops;
+}();
 
 ZIRCON_DRIVER_BEGIN(ethernet_ax88179, ax88179_driver_ops, "zircon", "0.1", 3)
     BI_ABORT_IF(NE, BIND_PROTOCOL, ZX_PROTOCOL_USB),
