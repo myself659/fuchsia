@@ -90,8 +90,8 @@ async fn define_msg_handling_loop_future<F: Fn() -> i64>(
         let response = server
             .lock()
             .unwrap()
-            .dispatch(msg)
-            .ok_or_else(|| failure::err_msg("invalid message"))?;
+            .dispatch(msg)?;
+            //.ok_or_else(|| failure::err_msg("invalid message"))?;
         fx_log_info!("generated response: {:?}", response);
         let response_buffer = response.serialize();
         // A new DHCP client sending a DHCPDISCOVER message will send
