@@ -40,9 +40,6 @@ namespace eth {
 #define ETHMAC_INITIAL_TRANSMIT_DELAY 15
 #define ETHMAC_INITIAL_RECV_DELAY 0
 
-//typedef struct {
-//} ax88179_t;
-
 typedef struct {
   uint16_t num_pkts;
   uint16_t pkt_hdr_off;
@@ -84,7 +81,7 @@ public:
     zx_status_t EthmacStart(const ethmac_ifc_protocol_t* ifc) __TA_EXCLUDES(lock_);
     zx_status_t EthmacQueueTx(uint32_t options, ethmac_netbuf_t* netbuf) __TA_EXCLUDES(lock_);
     zx_status_t EthmacSetParam(uint32_t param, int32_t value, const void* data, size_t data_size);
-    void EthmacGetBti(zx::bti* bti);
+    void EthmacGetBti(zx::bti* bti) {}
 
     // ETH_BOARD protocol.
 // TODO: Jamie - Dont need this delete it    zx_status_t EthBoardResetPhy();
@@ -123,19 +120,11 @@ public:
 
     void HandleInterrupt( usb_request_t* request);
 
-    zx_status_t QueueTx(void* ctx, uint32_t options, ethmac_netbuf_t* netbuf);
-
     void Unbind(void* ctx);
 
     void Free();
 
     void Release(void* ctx);
-
-    zx_status_t Query(void* ctx, uint32_t options, ethmac_info_t* info);
-
-    void Stop(void* ctx);
-
-    zx_status_t Start(void* ctx, const ethmac_ifc_protocol_t* ifc);
 
     zx_status_t TwiddleRcrBit(uint16_t bit, bool on);
 
@@ -150,12 +139,6 @@ public:
                                                       size_t address_size);
 
     void DumpRegs();
-
-    zx_status_t SetParam(void* ctx,
-                         uint32_t param,
-                         int32_t value,
-                         const void* data,
-                         size_t data_size);
 
     int Thread(void* arg);
 
@@ -179,7 +162,8 @@ public:
     list_node_t free_write_reqs_;
 
     // Locks the usb_tx_in_flight, pending_usb_tx, and pending_netbuf lists.
-    mtx_t tx_lock_;
+    fbl::Mutex tx_mutex_;
+
     // Whether a request has been queued to the USB device.
     uint8_t usb_tx_in_flight_;
     // List of requests that have pending data. Used to buffer data if a USB transaction is in
@@ -197,7 +181,7 @@ public:
 
     size_t parent_req_size_;
     thrd_t thread_;
-    mtx_t mutex_;
+    fbl::Mutex mutex_;
 };
 
 } // namespace eth

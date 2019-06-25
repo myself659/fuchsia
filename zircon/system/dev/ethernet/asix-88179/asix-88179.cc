@@ -247,7 +247,7 @@ void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
         return;
     }
 
-    mtx_lock(&mutex_);
+    fbl::AutoLock lock(&mutex_);
     if (request->response.status == ZX_ERR_IO_REFUSED) {
         zxlogf(TRACE, "ReadComplete usb_reset_endpoint\n");
         usb_reset_endpoint(&usb_, bulk_in_addr_);
@@ -275,7 +275,6 @@ void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
                                                    parent_req_size_);
         ZX_DEBUG_ASSERT(status == ZX_OK);
     }
-    mtx_unlock(&mutex_);
 }
 
 zx_status_t Asix88179Ethernet::AppendToTxReq(usb_protocol_t* usb, usb_request_t* req,
@@ -295,14 +294,13 @@ zx_status_t Asix88179Ethernet::AppendToTxReq(usb_protocol_t* usb, usb_request_t*
 }
 
 void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
-
     if (request->response.status == ZX_ERR_IO_NOT_PRESENT) {
         usb_request_release(request);
         return;
     }
 
     zx_status_t status;
-    mtx_lock(&tx_lock_);
+    fbl::AutoLock tx_lock(&tx_mutex_);
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
 
     if (!list_is_empty(&pending_netbuf_)) {
@@ -312,11 +310,12 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
         while (next_txn != NULL && AppendToTxReq(&usb_, request,
                                                  &next_txn->netbuf) == ZX_OK) {
             list_remove_head_type(&pending_netbuf_, txn_info_t, node);
-            mtx_lock(&mutex_);
-            if (ifc_.ops) {
-                ethmac_ifc_complete_tx(&ifc_, &next_txn->netbuf, ZX_OK);
+            { // Lock scope
+                fbl::AutoLock lock(&mutex_);
+                if (ifc_.ops) {
+                    ethmac_ifc_complete_tx(&ifc_, &next_txn->netbuf, ZX_OK);
+                }
             }
-            mtx_unlock(&mutex_);
             next_txn = list_peek_head_type(&pending_netbuf_, txn_info_t, node);
         }
         status = usb_req_list_add_tail(&pending_usb_tx_, request, parent_req_size_);
@@ -353,7 +352,6 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
         usb_request_queue(&usb_, next, &complete);
     }
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
-    mtx_unlock(&tx_lock_);
 }
 
 void Asix88179Ethernet::InterruptComplete(void* ctx, usb_request_t* request) {
@@ -362,7 +360,7 @@ void Asix88179Ethernet::InterruptComplete(void* ctx, usb_request_t* request) {
 }
 
 void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
-    mtx_lock(&mutex_);
+    fbl::AutoLock lock(&mutex_);
     if (request->response.status == ZX_OK && request->response.actual == sizeof(status_)) {
         uint8_t status[INTR_REQ_SIZE];
 
@@ -405,11 +403,9 @@ void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
             }
         }
     }
-
-    mtx_unlock(&mutex_);
 }
 
-zx_status_t Asix88179Ethernet::QueueTx(void* ctx, uint32_t options, ethmac_netbuf_t* netbuf) {
+zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* netbuf) {
     size_t length = netbuf->data_size;
     txn_info_t* txn = containerof(netbuf, txn_info_t, netbuf);
 
@@ -418,7 +414,7 @@ zx_status_t Asix88179Ethernet::QueueTx(void* ctx, uint32_t options, ethmac_netbu
         return ZX_ERR_INVALID_ARGS;
     }
 
-    mtx_lock(&tx_lock_);
+    fbl::AutoLock tx_lock(&tx_mutex_);
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
 
     usb_request_complete_t complete = {
@@ -472,13 +468,11 @@ zx_status_t Asix88179Ethernet::QueueTx(void* ctx, uint32_t options, ethmac_netbu
         // Don't send data if we have more coming that might fit into the current request. If we
         // already filled up a request, though, we should write it out if we can.
         zxlogf(DEBUG1, "ax88179: waiting for more data, %u outstanding\n", usb_tx_in_flight_);
-        mtx_unlock(&tx_lock_);
         return ZX_OK;
     }
 
     if (usb_tx_in_flight_ == MAX_TX_IN_FLIGHT) {
         zxlogf(DEBUG1, "ax88179: max outstanding tx, waiting\n");
-        mtx_unlock(&tx_lock_);
         return ZX_OK;
     }
     req = usb_req_list_remove_head(&pending_usb_tx_, parent_req_size_);
@@ -488,14 +482,12 @@ zx_status_t Asix88179Ethernet::QueueTx(void* ctx, uint32_t options, ethmac_netbu
     usb_request_queue(&usb_, req, &complete);
     usb_tx_in_flight_++;
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
-    mtx_unlock(&tx_lock_);
     return ZX_OK;
 
 bufs_full:
     list_add_tail(&pending_netbuf_, &txn->node);
     zxlogf(DEBUG1, "ax88179: buffers full, there are %zu pending netbufs\n",
             list_length(&pending_netbuf_));
-    mtx_unlock(&tx_lock_);
     return ZX_ERR_SHOULD_WAIT;
 }
 
@@ -525,7 +517,7 @@ void Asix88179Ethernet::Release(void* ctx) {
   Free();
 }
 
-zx_status_t Asix88179Ethernet::Query(void* ctx, uint32_t options, ethmac_info_t* info) {
+zx_status_t Asix88179Ethernet::EthmacQuery(uint32_t options, ethmac_info_t* info) {
     if (options) {
         return ZX_ERR_INVALID_ARGS;
     }
@@ -538,23 +530,21 @@ zx_status_t Asix88179Ethernet::Query(void* ctx, uint32_t options, ethmac_info_t*
     return ZX_OK;
 }
 
-void Asix88179Ethernet::Stop(void* ctx) {
-    mtx_lock(&mutex_);
+void Asix88179Ethernet::EthmacStop() {
+    fbl::AutoLock lock(&mutex_);
     ifc_.ops = NULL;
-    mtx_unlock(&mutex_);
 }
 
-zx_status_t Asix88179Ethernet::Start(void* ctx, const ethmac_ifc_protocol_t* ifc) {
+zx_status_t Asix88179Ethernet::EthmacStart(const ethmac_ifc_protocol_t* ifc) {
     zx_status_t status = ZX_OK;
 
-    mtx_lock(&mutex_);
+    fbl::AutoLock lock(&mutex_);
     if (ifc_.ops) {
         status = ZX_ERR_BAD_STATE;
     } else {
         ifc_ = *ifc;
         ethmac_ifc_status(&ifc_, online_ ? ETHMAC_STATUS_ONLINE : 0);
     }
-    mtx_unlock(&mutex_);
 
     return status;
 }
@@ -622,14 +612,13 @@ zx_status_t Asix88179Ethernet::SetMulticastFilter(int32_t n_addresses,
     return status;
 }
 
-zx_status_t Asix88179Ethernet::SetParam(void* ctx,
-                                        uint32_t param,
+zx_status_t Asix88179Ethernet::EthmacSetParam(uint32_t param,
                                         int32_t value,
                                         const void* data,
                                         size_t data_size) {
     zx_status_t status = ZX_OK;
 
-    mtx_lock(&mutex_);
+    fbl::AutoLock lock(&mutex_);
 
     switch (param) {
     case ETHMAC_SETPARAM_PROMISC:
@@ -648,7 +637,6 @@ zx_status_t Asix88179Ethernet::SetParam(void* ctx,
     default:
         status = ZX_ERR_NOT_SUPPORTED;
     }
-    mtx_unlock(&mutex_);
 
     return status;
 }
@@ -885,8 +873,6 @@ zx_status_t Asix88179Ethernet::AddDevice() {
     list_initialize(&free_write_reqs_);
     list_initialize(&pending_usb_tx_);
     list_initialize(&pending_netbuf_);
-    mtx_init(&tx_lock_, mtx_plain);
-    mtx_init(&mutex_, mtx_plain);
 
     usb_device_ = parent();
     memcpy(&usb_, &usb, sizeof(usb_));
