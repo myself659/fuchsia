@@ -71,7 +71,7 @@ static void usb_midi_sink_write_complete(void* ctx, usb_request_t* req) {
 }
 
 static void usb_midi_sink_unbind(void* ctx) {
-    usb_midi_sink_t* sink = ctx;
+    auto* sink = static_cast<usb_midi_sink_t*>(ctx);
     sink->dead = true;
     update_signals(sink);
     sync_completion_signal(&sink->free_write_completion);
@@ -88,12 +88,12 @@ static void usb_midi_sink_free(usb_midi_sink_t* sink) {
 }
 
 static void usb_midi_sink_release(void* ctx) {
-    usb_midi_sink_t* sink = ctx;
+    auto* sink = static_cast<usb_midi_sink_t*>(ctx);
     usb_midi_sink_free(sink);
 }
 
 static zx_status_t usb_midi_sink_open(void* ctx, zx_device_t** dev_out, uint32_t flags) {
-    usb_midi_sink_t* sink = ctx;
+    auto* sink = static_cast<usb_midi_sink_t*>(ctx);
     zx_status_t result;
 
     mtx_lock(&sink->mutex);
@@ -109,7 +109,7 @@ static zx_status_t usb_midi_sink_open(void* ctx, zx_device_t** dev_out, uint32_t
 }
 
 static zx_status_t usb_midi_sink_close(void* ctx, uint32_t flags) {
-    usb_midi_sink_t* sink = ctx;
+    auto* sink = static_cast<usb_midi_sink_t*>(ctx);
 
     mtx_lock(&sink->mutex);
     sink->open = false;
@@ -120,7 +120,7 @@ static zx_status_t usb_midi_sink_close(void* ctx, uint32_t flags) {
 
 static zx_status_t usb_midi_sink_write(void* ctx, const void* data, size_t length,
                                        zx_off_t offset, size_t* actual) {
-    usb_midi_sink_t* sink = ctx;
+    auto* sink = static_cast<usb_midi_sink_t*>(ctx);
 
     if (sink->dead) {
         return ZX_ERR_IO_NOT_PRESENT;
@@ -206,7 +206,7 @@ zx_status_t usb_midi_sink_create(zx_device_t* device, usb_protocol_t* usb, int i
                                   const usb_interface_descriptor_t* intf,
                                   const usb_endpoint_descriptor_t* ep,
                                   const size_t parent_req_size) {
-    usb_midi_sink_t* sink = calloc(1, sizeof(usb_midi_sink_t));
+    auto* sink = static_cast<usb_midi_sink_t*>(calloc(1, sizeof(usb_midi_sink_t)));
     if (!sink) {
         printf("Not enough memory for usb_midi_sink_t\n");
         return ZX_ERR_NO_MEMORY;

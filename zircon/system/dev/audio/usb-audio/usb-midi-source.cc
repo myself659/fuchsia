@@ -79,7 +79,7 @@ static void usb_midi_source_read_complete(void* ctx, usb_request_t* req) {
 }
 
 static void usb_midi_source_unbind(void* ctx) {
-    usb_midi_source_t* source = ctx;
+    auto* source = static_cast<usb_midi_source_t*>(ctx);
     source->dead = true;
     update_signals(source);
     device_remove(source->mxdev);
@@ -99,12 +99,12 @@ static void usb_midi_source_free(usb_midi_source_t* source) {
 }
 
 static void usb_midi_source_release(void* ctx) {
-    usb_midi_source_t* source = ctx;
+    auto* source = static_cast<usb_midi_source_t*>(ctx);
     usb_midi_source_free(source);
 }
 
 static zx_status_t usb_midi_source_open(void* ctx, zx_device_t** dev_out, uint32_t flags) {
-    usb_midi_source_t* source = ctx;
+    auto* source = static_cast<usb_midi_source_t*>(ctx);
     zx_status_t result;
 
     mtx_lock(&source->mutex);
@@ -135,7 +135,7 @@ static zx_status_t usb_midi_source_open(void* ctx, zx_device_t** dev_out, uint32
 }
 
 static zx_status_t usb_midi_source_close(void* ctx, uint32_t flags) {
-    usb_midi_source_t* source = ctx;
+    auto* source = static_cast<usb_midi_source_t*>(ctx);
 
     mtx_lock(&source->mutex);
     source->open = false;
@@ -146,7 +146,7 @@ static zx_status_t usb_midi_source_close(void* ctx, uint32_t flags) {
 
 static zx_status_t usb_midi_source_read(void* ctx, void* data, size_t len, zx_off_t off,
                                         size_t* actual) {
-    usb_midi_source_t* source = ctx;
+    auto* source = static_cast<usb_midi_source_t*>(ctx);
 
     if (source->dead) {
         return ZX_ERR_IO_NOT_PRESENT;
@@ -157,13 +157,20 @@ static zx_status_t usb_midi_source_read(void* ctx, void* data, size_t len, zx_of
 
     mtx_lock(&source->mutex);
 
+    usb_request_complete_t complete = {
+        .callback = usb_midi_source_read_complete,
+        .ctx = source,
+    };
+
     list_node_t* node = list_peek_head(&source->completed_reads);
     if (!node) {
         status = ZX_ERR_SHOULD_WAIT;
         goto out;
     }
-    usb_req_internal_t* req_int = containerof(node, usb_req_internal_t, node);
-    usb_request_t* req = REQ_INTERNAL_TO_USB_REQ(req_int, source->parent_req_size);
+    usb_req_internal_t* req_int;
+    req_int = containerof(node, usb_req_internal_t, node);
+    usb_request_t* req;
+    req = REQ_INTERNAL_TO_USB_REQ(req_int, source->parent_req_size);
 
     // MIDI events are 4 bytes. We can ignore the zeroth byte
     usb_request_copy_from(req, data, 3, 1);
@@ -171,10 +178,6 @@ static zx_status_t usb_midi_source_read(void* ctx, void* data, size_t len, zx_of
     list_remove_head(&source->completed_reads);
     status = usb_req_list_add_head(&source->free_read_reqs, req, source->parent_req_size);
     ZX_DEBUG_ASSERT(status == ZX_OK);
-    usb_request_complete_t complete = {
-        .callback = usb_midi_source_read_complete,
-        .ctx = source,
-    };
     while ((req = usb_req_list_remove_head(&source->free_read_reqs,
                                            source->parent_req_size)) != NULL) {
         usb_request_queue(&source->usb, req, &complete);
@@ -213,7 +216,7 @@ zx_status_t usb_midi_source_create(zx_device_t* device, usb_protocol_t* usb, int
                                   const usb_interface_descriptor_t* intf,
                                   const usb_endpoint_descriptor_t* ep,
                                   size_t parent_req_size) {
-    usb_midi_source_t* source = calloc(1, sizeof(usb_midi_source_t));
+    auto* source = static_cast<usb_midi_source_t*>(calloc(1, sizeof(usb_midi_source_t)));
     if (!source) {
         printf("Not enough memory for usb_midi_source_t\n");
         return ZX_ERR_NO_MEMORY;
