@@ -4,7 +4,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <fuchsia/hardware/midi/c/fidl.h>
+#include <fuchsia/hardware/midi/llcpp/fidl.h>
 #include <lib/fdio/unsafe.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -14,6 +14,8 @@
 #include <zircon/types.h>
 
 #define DEV_MIDI   "/dev/class/midi"
+
+namespace midi = llcpp::fuchsia::hardware::midi;
 
 static bool open_devices(int* out_src_fd, int* out_dest_fd) {
     int src_fd = -1;
@@ -36,23 +38,23 @@ static bool open_devices(int* out_src_fd, int* out_dest_fd) {
             continue;
         }
 
-        fuchsia_hardware_midi_Info device_info;
+        llcpp::fuchsia::hardware::midi::Direction direction;
         fdio_t* fdio = fdio_unsafe_fd_to_io(fd);
-        zx_status_t status = fuchsia_hardware_midi_DeviceGetInfo(
-                fdio_unsafe_borrow_channel(fdio), &device_info);
+        zx_status_t status = llcpp::fuchsia::hardware::midi::Device::Call::GetDirection(
+                            zx::unowned_channel(fdio_unsafe_borrow_channel(fdio)), &direction);
         fdio_unsafe_release(fdio);
         if (status != ZX_OK) {
             printf("fuchsia.hardware.midi.Device/GetInfo failed for %s\n", devname);
             close(fd);
             continue;
         }
-        if (device_info.is_source) {
+        if (direction == midi::Direction::SOURCE) {
             if (src_fd == -1) {
                 src_fd = fd;
             } else {
                 close(fd);
             }
-        } else if (device_info.is_sink) {
+        } else if (direction == midi::Direction::SINK) {
             if (dest_fd == -1) {
                 dest_fd = fd;
             } else {
@@ -89,7 +91,7 @@ int main(int argc, char **argv)
     while (1) {
         uint8_t buffer[3];
 
-        int length = read(src_fd, buffer, sizeof(buffer));
+        auto length = read(src_fd, buffer, sizeof(buffer));
         if (length < 0) break;
         printf("MIDI event:");
         for (int i = 0; i < length; i++) {

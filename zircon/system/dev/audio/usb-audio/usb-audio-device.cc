@@ -15,6 +15,8 @@
 #include "usb-audio-device.h"
 #include "usb-audio-stream.h"
 #include "usb-audio-stream-interface.h"
+#include "usb-midi-sink.h"
+#include "usb-midi-source.h"
 
 namespace audio {
 namespace usb {
@@ -255,23 +257,23 @@ void UsbAudioDevice::Probe() {
             if (info.out_ep != nullptr) {
                 LOG(TRACE, "Adding MIDI sink (iid %u, ep 0x%02x)\n",
                     info.ifc->bInterfaceNumber, info.out_ep->bEndpointAddress);
-                usb_midi_sink_create(zxdev(),
-                                     &usb_proto_,
-                                     midi_sink_index_++,
-                                     info.ifc,
-                                     info.out_ep,
-                                     parent_req_size_);
+                UsbMidiSink::Create(zxdev(),
+                                    &usb_proto_,
+                                    midi_sink_index_++,
+                                    info.ifc,
+                                    info.out_ep,
+                                    parent_req_size_);
             }
 
             if (info.in_ep != nullptr) {
                 LOG(TRACE, "Adding MIDI source (iid %u, ep 0x%02x)\n",
                     info.ifc->bInterfaceNumber, info.in_ep->bEndpointAddress);
-                usb_midi_source_create(zxdev(),
-                                     &usb_proto_,
-                                     midi_source_index_++,
-                                     info.ifc,
-                                     info.in_ep,
-                                     parent_req_size_);
+                UsbMidiSource::Create(zxdev(),
+                                      &usb_proto_,
+                                      midi_source_index_++,
+                                      info.ifc,
+                                      info.in_ep,
+                                      parent_req_size_);
             }
 
             break;
