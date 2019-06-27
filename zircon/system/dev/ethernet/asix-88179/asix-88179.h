@@ -81,15 +81,12 @@ public:
     zx_status_t EthmacStart(const ethmac_ifc_protocol_t* ifc) __TA_EXCLUDES(lock_);
     zx_status_t EthmacQueueTx(uint32_t options, ethmac_netbuf_t* netbuf) __TA_EXCLUDES(lock_);
     zx_status_t EthmacSetParam(uint32_t param, int32_t value, const void* data, size_t data_size);
-    void EthmacGetBti(zx::bti* bti) {}
-
-    // ETH_BOARD protocol.
-// TODO: Jamie - Dont need this delete it    zx_status_t EthBoardResetPhy();
+    void EthmacGetBti(zx::bti* bti) { bti->reset(); }
 
     static zx_status_t Bind(void* ctx, zx_device_t* device);
 
  private:
-    zx_status_t AddDevice();
+    zx_status_t Init();
 
     zx_status_t ReadMac(uint8_t reg_addr,
                                            uint8_t reg_len,
@@ -111,8 +108,7 @@ public:
 
     void ReadComplete(void* ctx, usb_request_t* request);
 
-    zx_status_t AppendToTxReq(usb_protocol_t* usb, usb_request_t* req,
-                                                 ethmac_netbuf_t* netbuf);
+    zx_status_t AppendToTxReq(usb_request_t* req, ethmac_netbuf_t* netbuf);
 
     void WriteComplete(void* ctx, usb_request_t* request);
 
@@ -140,11 +136,16 @@ public:
 
     void DumpRegs();
 
-    int Thread(void* arg);
+    int Thread();
 
     zx_device_t* device_;
+
+    usb::UsbDevice usb_;
+
+/*TODO: Jamie - delete
     zx_device_t* usb_device_;
     usb_protocol_t usb_;
+*/
 
     uint8_t mac_addr_[ETH_MAC_SIZE];
     uint8_t status_[INTR_REQ_SIZE];
@@ -152,6 +153,7 @@ public:
     bool multicast_filter_overflow_;
     uint8_t bulk_in_addr_;
     uint8_t bulk_out_addr_;
+    uint8_t interface_number_;
 
     // interrupt in request
     usb_request_t* interrupt_req_;
