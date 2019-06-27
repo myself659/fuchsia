@@ -844,13 +844,16 @@ zx_status_t Asix88179Ethernet::Init() {
     }
 
     // find our endpoints
-    usb::InterfaceList interfaces(usb, true);
-    if ((status = interfaces.check()) != ZX_OK) {
+    std::optional<usb::InterfaceList> usb_interface_list;
+    status = usb::InterfaceList::Create(usb, true, &usb_interface_list);
+    if (status != ZX_OK) {
         return status;
     }
-    auto interface = interfaces.begin();
+
+    auto interface = usb_interface_list->begin();
+
     const usb_interface_descriptor_t* interface_descriptor = interface->descriptor();
-    if (interface == interfaces.end()) {
+    if (interface == usb_interface_list->end()) {
         return ZX_ERR_NOT_SUPPORTED;
     }
     if (interface_descriptor->bNumEndpoints < 3) {
