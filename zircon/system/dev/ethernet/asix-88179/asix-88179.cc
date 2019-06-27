@@ -823,6 +823,17 @@ fail:
     return status;
 }
 
+void Asix88179Ethernet::DdkRelease() {
+    zxlogf(INFO, "ax88179: release...\n");
+    delete this;
+}
+
+void Asix88179Ethernet::DdkUnbind() {
+    zxlogf(INFO, "ax88179:Unbind\n");
+    //ShutDown();
+    DdkRemove();
+}
+
 zx_status_t Asix88179Ethernet::Init() {
     zx_status_t status;
     int ret = 0;
@@ -920,6 +931,30 @@ zx_status_t Asix88179Ethernet::Init() {
     }
     */
 
+    // Create the device
+    /*
+    device_add_args_t args = {
+        .version = DEVICE_ADD_ARGS_VERSION,
+        .name = "ax88179",
+        .ctx = this,
+        .ops = &ddk_device_proto_,
+        .flags = DEVICE_ADD_INVISIBLE,
+        .proto_id = ZX_PROTOCOL_ETHMAC,
+        .proto_ops = &eth_mac_protocol_ops_,
+    };
+
+    status = device_add(eth->usb_device, &args, &eth->device);
+    if (status < 0) {
+        zxlogf(ERROR, "ax88179: failed to create device: %d\n", status);
+        goto fail;
+    }
+*/
+    status = DdkAdd("ax88179");
+    if (status < 0) {
+        zxlogf(ERROR, "ax88179: failed to create device: %d\n", status);
+        goto fail;
+    }
+
     ret = thrd_create_with_name(&thread_,
         [](void* arg) -> int {
             return static_cast<Asix88179Ethernet*>(arg)->Thread();
@@ -961,28 +996,6 @@ zx_status_t Asix88179Ethernet::Bind(void* ctx, zx_device_t* dev) {
 }
 
 /* TODO: Jamie
-
-static zx_protocol_device_t ax88179_device_proto = []() {
-  zx_protocol_device_t dev = {};
-  dev.version = DEVICE_OPS_VERSION;
-  dev.unbind = Unbind;
-  dev.release = Release;
-
-  return dev;
-}();
-
-
-static ethmac_protocol_ops_t ethmac_ops = []() {
-  ethmac_protocol_ops_t ops = {};
-  ops.query = Query;
-  ops.stop = Stop;
-  ops.start = Start;
-  ops.queue_tx = QueueTx;
-  ops.set_param = SetParam;
-
-  return ops;
-}();
-
 */
 
 } // namespace eth

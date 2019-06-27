@@ -60,7 +60,7 @@ typedef struct txn_info {
 
 class Asix88179Ethernet;
 
-using DeviceType = ddk::Device<Asix88179Ethernet, ddk::Openable, ddk::Unbindable>;
+using DeviceType = ddk::Device<Asix88179Ethernet, ddk::Unbindable>;
 
 class Asix88179Ethernet : public DeviceType,
                     public ddk::EthmacProtocol<Asix88179Ethernet, ddk::base_protocol> {
