@@ -4,6 +4,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <fbl/algorithm.h>
 #include <fuchsia/hardware/midi/llcpp/fidl.h>
 #include <lib/fdio/unsafe.h>
 #include <stdbool.h>
@@ -38,9 +39,9 @@ static bool open_devices(int* out_src_fd, int* out_dest_fd) {
             continue;
         }
 
-        llcpp::fuchsia::hardware::midi::Direction direction;
+        midi::Direction direction;
         fdio_t* fdio = fdio_unsafe_fd_to_io(fd);
-        zx_status_t status = llcpp::fuchsia::hardware::midi::Device::Call::GetDirection(
+        zx_status_t status = midi::Device::Call::GetDirection(
                             zx::unowned_channel(fdio_unsafe_borrow_channel(fdio)), &direction);
         fdio_unsafe_release(fdio);
         if (status != ZX_OK) {
@@ -88,19 +89,35 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    while (1) {
-        uint8_t buffer[3];
+    auto* src_fdio = fdio_unsafe_fd_to_io(src_fd);
+    auto* dest_fdio = fdio_unsafe_fd_to_io(dest_fd);
 
-        auto length = read(src_fd, buffer, sizeof(buffer));
+    while (1) {
+        uint8_t request_buffer[fidl::MaxSizeInChannel<midi::Device::ReadRequest>()] = {};
+        uint8_t response_buffer[fidl::MaxSizeInChannel<midi::Device::ReadResponse>()] = {};
+
+        fidl::DecodedMessage<midi::Device::ReadRequest> request(fidl::BytePart::WrapFull(request_buffer));
+        request.message()->count = 3;
+        auto result = midi::Device::Call::Read(zx::unowned_channel(fdio_unsafe_borrow_channel(src_fdio)), std::move(request),
+                                               fidl::BytePart::WrapEmpty(response_buffer));
+        midi::Device::ReadResponse* response = result.Unwrap();
+        auto read_response = response->result.response();
+        
+        auto data = read_response.data.data();
+        auto length = read_response.data.count();
         if (length < 0) break;
         printf("MIDI event:");
-        for (int i = 0; i < length; i++) {
-            printf(" %02X", buffer[i]);
+        for (size_t i = 0; i < length; i++) {
+            printf(" %02X", data[i]);
         }
         printf("\n");
-        if (write(dest_fd, buffer, length) < 0) break;
+ 
+ 
+//        if (write(dest_fd, buffer, length) < 0) break;
     }
 
+    fdio_unsafe_release(src_fdio);
+    fdio_unsafe_release(dest_fdio);
     close(src_fd);
     close(dest_fd);
 

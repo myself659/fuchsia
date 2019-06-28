@@ -9,11 +9,136 @@ namespace fuchsia {
 namespace hardware {
 namespace midi {
 
+::llcpp::fuchsia::hardware::midi::Device_Write_Result::Device_Write_Result() {
+  tag_ = Tag::Invalid;
+}
+
+::llcpp::fuchsia::hardware::midi::Device_Write_Result::~Device_Write_Result() {
+  Destroy();
+}
+
+void ::llcpp::fuchsia::hardware::midi::Device_Write_Result::Destroy() {
+  switch (which()) {
+  case Tag::kResponse:
+    response_.~Device_Write_Response();
+    break;
+  default:
+    break;
+  }
+  tag_ = Tag::Invalid;
+}
+
+void ::llcpp::fuchsia::hardware::midi::Device_Write_Result::MoveImpl_(Device_Write_Result&& other) {
+  switch (other.which()) {
+  case Tag::kResponse:
+    mutable_response() = std::move(other.mutable_response());
+    break;
+  case Tag::kErr:
+    mutable_err() = std::move(other.mutable_err());
+    break;
+  default:
+    break;
+  }
+  other.Destroy();
+}
+
+void ::llcpp::fuchsia::hardware::midi::Device_Write_Result::SizeAndOffsetAssertionHelper() {
+  static_assert(offsetof(::llcpp::fuchsia::hardware::midi::Device_Write_Result, response_) == 8);
+  static_assert(offsetof(::llcpp::fuchsia::hardware::midi::Device_Write_Result, err_) == 8);
+  static_assert(sizeof(::llcpp::fuchsia::hardware::midi::Device_Write_Result) == ::llcpp::fuchsia::hardware::midi::Device_Write_Result::PrimarySize);
+}
+
+
+Device_Write_Response& ::llcpp::fuchsia::hardware::midi::Device_Write_Result::mutable_response() {
+  if (which() != Tag::kResponse) {
+    Destroy();
+    new (&response_) Device_Write_Response;
+  }
+  tag_ = Tag::kResponse;
+  return response_;
+}
+
+int32_t& ::llcpp::fuchsia::hardware::midi::Device_Write_Result::mutable_err() {
+  if (which() != Tag::kErr) {
+    Destroy();
+    new (&err_) int32_t;
+  }
+  tag_ = Tag::kErr;
+  return err_;
+}
+
+
+::llcpp::fuchsia::hardware::midi::Device_Read_Result::Device_Read_Result() {
+  tag_ = Tag::Invalid;
+}
+
+::llcpp::fuchsia::hardware::midi::Device_Read_Result::~Device_Read_Result() {
+  Destroy();
+}
+
+void ::llcpp::fuchsia::hardware::midi::Device_Read_Result::Destroy() {
+  switch (which()) {
+  case Tag::kResponse:
+    response_.~Device_Read_Response();
+    break;
+  default:
+    break;
+  }
+  tag_ = Tag::Invalid;
+}
+
+void ::llcpp::fuchsia::hardware::midi::Device_Read_Result::MoveImpl_(Device_Read_Result&& other) {
+  switch (other.which()) {
+  case Tag::kResponse:
+    mutable_response() = std::move(other.mutable_response());
+    break;
+  case Tag::kErr:
+    mutable_err() = std::move(other.mutable_err());
+    break;
+  default:
+    break;
+  }
+  other.Destroy();
+}
+
+void ::llcpp::fuchsia::hardware::midi::Device_Read_Result::SizeAndOffsetAssertionHelper() {
+  static_assert(offsetof(::llcpp::fuchsia::hardware::midi::Device_Read_Result, response_) == 8);
+  static_assert(offsetof(::llcpp::fuchsia::hardware::midi::Device_Read_Result, err_) == 8);
+  static_assert(sizeof(::llcpp::fuchsia::hardware::midi::Device_Read_Result) == ::llcpp::fuchsia::hardware::midi::Device_Read_Result::PrimarySize);
+}
+
+
+Device_Read_Response& ::llcpp::fuchsia::hardware::midi::Device_Read_Result::mutable_response() {
+  if (which() != Tag::kResponse) {
+    Destroy();
+    new (&response_) Device_Read_Response;
+  }
+  tag_ = Tag::kResponse;
+  return response_;
+}
+
+int32_t& ::llcpp::fuchsia::hardware::midi::Device_Read_Result::mutable_err() {
+  if (which() != Tag::kErr) {
+    Destroy();
+    new (&err_) int32_t;
+  }
+  tag_ = Tag::kErr;
+  return err_;
+}
+
+
 namespace {
 
 [[maybe_unused]]
 constexpr uint64_t kDevice_GetDirection_Ordinal = 1954958403lu << 32;
 extern "C" const fidl_type_t fuchsia_hardware_midi_DeviceGetDirectionResponseTable;
+[[maybe_unused]]
+constexpr uint64_t kDevice_Read_Ordinal = 1038000311lu << 32;
+extern "C" const fidl_type_t fuchsia_hardware_midi_DeviceReadResponseTable;
+[[maybe_unused]]
+constexpr uint64_t kDevice_Write_Ordinal = 496660007lu << 32;
+extern "C" const fidl_type_t fuchsia_hardware_midi_DeviceWriteRequestTable;
+extern "C" const fidl_type_t fuchsia_hardware_midi_DeviceWriteResponseTable;
 
 }  // namespace
 
@@ -108,6 +233,161 @@ zx_status_t Device::Call::GetDirection(zx::unowned_channel _client_end, Directio
 }
 
 
+::fidl::DecodeResult<Device::ReadResponse> Device::SyncClient::Read(::fidl::BytePart _request_buffer, uint64_t count, ::fidl::BytePart _response_buffer, Device_Read_Result* out_result) {
+  return Device::Call::Read(zx::unowned_channel(this->channel_), std::move(_request_buffer), std::move(count), std::move(_response_buffer), out_result);
+}
+
+::fidl::DecodeResult<Device::ReadResponse> Device::Call::Read(zx::unowned_channel _client_end, ::fidl::BytePart _request_buffer, uint64_t count, ::fidl::BytePart _response_buffer, Device_Read_Result* out_result) {
+  if (_request_buffer.capacity() < ReadRequest::PrimarySize) {
+    return ::fidl::DecodeResult<ReadResponse>(ZX_ERR_BUFFER_TOO_SMALL, ::fidl::internal::kErrorRequestBufferTooSmall);
+  }
+  auto& _request = *reinterpret_cast<ReadRequest*>(_request_buffer.data());
+  _request._hdr.ordinal = kDevice_Read_Ordinal;
+  _request.count = std::move(count);
+  _request_buffer.set_actual(sizeof(ReadRequest));
+  ::fidl::DecodedMessage<ReadRequest> _decoded_request(std::move(_request_buffer));
+  auto _encode_request_result = ::fidl::Encode(std::move(_decoded_request));
+  if (_encode_request_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<ReadResponse>(_encode_request_result.status, _encode_request_result.error);
+  }
+  auto _call_result = ::fidl::Call<ReadRequest, ReadResponse>(
+    std::move(_client_end), std::move(_encode_request_result.message), std::move(_response_buffer));
+  if (_call_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<ReadResponse>(_call_result.status, _call_result.error);
+  }
+  auto _decode_result = ::fidl::Decode(std::move(_call_result.message));
+  if (_decode_result.status != ZX_OK) {
+    return _decode_result;
+  }
+  auto& _response = *_decode_result.message.message();
+  *out_result = std::move(_response.result);
+  return _decode_result;
+}
+
+::fidl::DecodeResult<Device::ReadResponse> Device::SyncClient::Read(::fidl::DecodedMessage<ReadRequest> params, ::fidl::BytePart response_buffer) {
+  return Device::Call::Read(zx::unowned_channel(this->channel_), std::move(params), std::move(response_buffer));
+}
+
+::fidl::DecodeResult<Device::ReadResponse> Device::Call::Read(zx::unowned_channel _client_end, ::fidl::DecodedMessage<ReadRequest> params, ::fidl::BytePart response_buffer) {
+  params.message()->_hdr = {};
+  params.message()->_hdr.ordinal = kDevice_Read_Ordinal;
+  auto _encode_request_result = ::fidl::Encode(std::move(params));
+  if (_encode_request_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<Device::ReadResponse>(
+      _encode_request_result.status,
+      _encode_request_result.error,
+      ::fidl::DecodedMessage<Device::ReadResponse>());
+  }
+  auto _call_result = ::fidl::Call<ReadRequest, ReadResponse>(
+    std::move(_client_end), std::move(_encode_request_result.message), std::move(response_buffer));
+  if (_call_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<Device::ReadResponse>(
+      _call_result.status,
+      _call_result.error,
+      ::fidl::DecodedMessage<Device::ReadResponse>());
+  }
+  return ::fidl::Decode(std::move(_call_result.message));
+}
+
+
+zx_status_t Device::SyncClient::Write(::fidl::VectorView<uint8_t> data, Device_Write_Result* out_result) {
+  return Device::Call::Write(zx::unowned_channel(this->channel_), std::move(data), out_result);
+}
+
+zx_status_t Device::Call::Write(zx::unowned_channel _client_end, ::fidl::VectorView<uint8_t> data, Device_Write_Result* out_result) {
+  constexpr uint32_t _kWriteAllocSize = ::fidl::internal::ClampedMessageSize<WriteRequest>();
+  std::unique_ptr<uint8_t[]> _write_bytes_unique_ptr(new uint8_t[_kWriteAllocSize]);
+  uint8_t* _write_bytes = _write_bytes_unique_ptr.get();
+  WriteRequest _request = {};
+  _request._hdr.ordinal = kDevice_Write_Ordinal;
+  _request.data = std::move(data);
+  auto _linearize_result = ::fidl::Linearize(&_request, ::fidl::BytePart(_write_bytes,
+                                                                         _kWriteAllocSize));
+  if (_linearize_result.status != ZX_OK) {
+    return _linearize_result.status;
+  }
+  ::fidl::DecodedMessage<WriteRequest> _decoded_request = std::move(_linearize_result.message);
+  auto _encode_request_result = ::fidl::Encode(std::move(_decoded_request));
+  if (_encode_request_result.status != ZX_OK) {
+    return _encode_request_result.status;
+  }
+  constexpr uint32_t _kReadAllocSize = ::fidl::internal::ClampedMessageSize<WriteResponse>();
+  FIDL_ALIGNDECL uint8_t _read_bytes[_kReadAllocSize];
+  ::fidl::BytePart _response_bytes(_read_bytes, _kReadAllocSize);
+  auto _call_result = ::fidl::Call<WriteRequest, WriteResponse>(
+    std::move(_client_end), std::move(_encode_request_result.message), std::move(_response_bytes));
+  if (_call_result.status != ZX_OK) {
+    return _call_result.status;
+  }
+  auto _decode_result = ::fidl::Decode(std::move(_call_result.message));
+  if (_decode_result.status != ZX_OK) {
+    return _decode_result.status;
+  }
+  auto& _response = *_decode_result.message.message();
+  *out_result = std::move(_response.result);
+  return ZX_OK;
+}
+
+::fidl::DecodeResult<Device::WriteResponse> Device::SyncClient::Write(::fidl::BytePart _request_buffer, ::fidl::VectorView<uint8_t> data, ::fidl::BytePart _response_buffer, Device_Write_Result* out_result) {
+  return Device::Call::Write(zx::unowned_channel(this->channel_), std::move(_request_buffer), std::move(data), std::move(_response_buffer), out_result);
+}
+
+::fidl::DecodeResult<Device::WriteResponse> Device::Call::Write(zx::unowned_channel _client_end, ::fidl::BytePart _request_buffer, ::fidl::VectorView<uint8_t> data, ::fidl::BytePart _response_buffer, Device_Write_Result* out_result) {
+  if (_request_buffer.capacity() < WriteRequest::PrimarySize) {
+    return ::fidl::DecodeResult<WriteResponse>(ZX_ERR_BUFFER_TOO_SMALL, ::fidl::internal::kErrorRequestBufferTooSmall);
+  }
+  WriteRequest _request = {};
+  _request._hdr.ordinal = kDevice_Write_Ordinal;
+  _request.data = std::move(data);
+  auto _linearize_result = ::fidl::Linearize(&_request, std::move(_request_buffer));
+  if (_linearize_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<WriteResponse>(_linearize_result.status, _linearize_result.error);
+  }
+  ::fidl::DecodedMessage<WriteRequest> _decoded_request = std::move(_linearize_result.message);
+  auto _encode_request_result = ::fidl::Encode(std::move(_decoded_request));
+  if (_encode_request_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<WriteResponse>(_encode_request_result.status, _encode_request_result.error);
+  }
+  auto _call_result = ::fidl::Call<WriteRequest, WriteResponse>(
+    std::move(_client_end), std::move(_encode_request_result.message), std::move(_response_buffer));
+  if (_call_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<WriteResponse>(_call_result.status, _call_result.error);
+  }
+  auto _decode_result = ::fidl::Decode(std::move(_call_result.message));
+  if (_decode_result.status != ZX_OK) {
+    return _decode_result;
+  }
+  auto& _response = *_decode_result.message.message();
+  *out_result = std::move(_response.result);
+  return _decode_result;
+}
+
+::fidl::DecodeResult<Device::WriteResponse> Device::SyncClient::Write(::fidl::DecodedMessage<WriteRequest> params, ::fidl::BytePart response_buffer) {
+  return Device::Call::Write(zx::unowned_channel(this->channel_), std::move(params), std::move(response_buffer));
+}
+
+::fidl::DecodeResult<Device::WriteResponse> Device::Call::Write(zx::unowned_channel _client_end, ::fidl::DecodedMessage<WriteRequest> params, ::fidl::BytePart response_buffer) {
+  params.message()->_hdr = {};
+  params.message()->_hdr.ordinal = kDevice_Write_Ordinal;
+  auto _encode_request_result = ::fidl::Encode(std::move(params));
+  if (_encode_request_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<Device::WriteResponse>(
+      _encode_request_result.status,
+      _encode_request_result.error,
+      ::fidl::DecodedMessage<Device::WriteResponse>());
+  }
+  auto _call_result = ::fidl::Call<WriteRequest, WriteResponse>(
+    std::move(_client_end), std::move(_encode_request_result.message), std::move(response_buffer));
+  if (_call_result.status != ZX_OK) {
+    return ::fidl::DecodeResult<Device::WriteResponse>(
+      _call_result.status,
+      _call_result.error,
+      ::fidl::DecodedMessage<Device::WriteResponse>());
+  }
+  return ::fidl::Decode(std::move(_call_result.message));
+}
+
+
 bool Device::TryDispatch(Interface* impl, fidl_msg_t* msg, ::fidl::Transaction* txn) {
   if (msg->num_bytes < sizeof(fidl_message_header_t)) {
     zx_handle_close_many(msg->handles, msg->num_handles);
@@ -124,6 +404,28 @@ bool Device::TryDispatch(Interface* impl, fidl_msg_t* msg, ::fidl::Transaction* 
       }
       impl->GetDirection(
         Interface::GetDirectionCompleter::Sync(txn));
+      return true;
+    }
+    case kDevice_Read_Ordinal: {
+      auto result = ::fidl::DecodeAs<ReadRequest>(msg);
+      if (result.status != ZX_OK) {
+        txn->Close(ZX_ERR_INVALID_ARGS);
+        return true;
+      }
+      auto message = result.message.message();
+      impl->Read(std::move(message->count),
+        Interface::ReadCompleter::Sync(txn));
+      return true;
+    }
+    case kDevice_Write_Ordinal: {
+      auto result = ::fidl::DecodeAs<WriteRequest>(msg);
+      if (result.status != ZX_OK) {
+        txn->Close(ZX_ERR_INVALID_ARGS);
+        return true;
+      }
+      auto message = result.message.message();
+      impl->Write(std::move(message->data),
+        Interface::WriteCompleter::Sync(txn));
       return true;
     }
     default: {
@@ -167,6 +469,74 @@ void Device::Interface::GetDirectionCompleterBase::Reply(::fidl::BytePart _buffe
 void Device::Interface::GetDirectionCompleterBase::Reply(::fidl::DecodedMessage<GetDirectionResponse> params) {
   params.message()->_hdr = {};
   params.message()->_hdr.ordinal = kDevice_GetDirection_Ordinal;
+  CompleterBase::SendReply(std::move(params));
+}
+
+
+void Device::Interface::ReadCompleterBase::Reply(Device_Read_Result result) {
+  constexpr uint32_t _kWriteAllocSize = ::fidl::internal::ClampedMessageSize<ReadResponse>();
+  std::unique_ptr<uint8_t[]> _write_bytes_unique_ptr(new uint8_t[_kWriteAllocSize]);
+  uint8_t* _write_bytes = _write_bytes_unique_ptr.get();
+  ReadResponse _response = {};
+  _response._hdr.ordinal = kDevice_Read_Ordinal;
+  _response.result = std::move(result);
+  auto _linearize_result = ::fidl::Linearize(&_response, ::fidl::BytePart(_write_bytes,
+                                                                          _kWriteAllocSize));
+  if (_linearize_result.status != ZX_OK) {
+    CompleterBase::Close(ZX_ERR_INTERNAL);
+    return;
+  }
+  CompleterBase::SendReply(std::move(_linearize_result.message));
+}
+
+void Device::Interface::ReadCompleterBase::Reply(::fidl::BytePart _buffer, Device_Read_Result result) {
+  if (_buffer.capacity() < ReadResponse::PrimarySize) {
+    CompleterBase::Close(ZX_ERR_INTERNAL);
+    return;
+  }
+  ReadResponse _response = {};
+  _response._hdr.ordinal = kDevice_Read_Ordinal;
+  _response.result = std::move(result);
+  auto _linearize_result = ::fidl::Linearize(&_response, std::move(_buffer));
+  if (_linearize_result.status != ZX_OK) {
+    CompleterBase::Close(ZX_ERR_INTERNAL);
+    return;
+  }
+  CompleterBase::SendReply(std::move(_linearize_result.message));
+}
+
+void Device::Interface::ReadCompleterBase::Reply(::fidl::DecodedMessage<ReadResponse> params) {
+  params.message()->_hdr = {};
+  params.message()->_hdr.ordinal = kDevice_Read_Ordinal;
+  CompleterBase::SendReply(std::move(params));
+}
+
+
+void Device::Interface::WriteCompleterBase::Reply(Device_Write_Result result) {
+  constexpr uint32_t _kWriteAllocSize = ::fidl::internal::ClampedMessageSize<WriteResponse>();
+  FIDL_ALIGNDECL uint8_t _write_bytes[_kWriteAllocSize] = {};
+  auto& _response = *reinterpret_cast<WriteResponse*>(_write_bytes);
+  _response._hdr.ordinal = kDevice_Write_Ordinal;
+  _response.result = std::move(result);
+  ::fidl::BytePart _response_bytes(_write_bytes, _kWriteAllocSize, sizeof(WriteResponse));
+  CompleterBase::SendReply(::fidl::DecodedMessage<WriteResponse>(std::move(_response_bytes)));
+}
+
+void Device::Interface::WriteCompleterBase::Reply(::fidl::BytePart _buffer, Device_Write_Result result) {
+  if (_buffer.capacity() < WriteResponse::PrimarySize) {
+    CompleterBase::Close(ZX_ERR_INTERNAL);
+    return;
+  }
+  auto& _response = *reinterpret_cast<WriteResponse*>(_buffer.data());
+  _response._hdr.ordinal = kDevice_Write_Ordinal;
+  _response.result = std::move(result);
+  _buffer.set_actual(sizeof(WriteResponse));
+  CompleterBase::SendReply(::fidl::DecodedMessage<WriteResponse>(std::move(_buffer)));
+}
+
+void Device::Interface::WriteCompleterBase::Reply(::fidl::DecodedMessage<WriteResponse> params) {
+  params.message()->_hdr = {};
+  params.message()->_hdr.ordinal = kDevice_Write_Ordinal;
   CompleterBase::SendReply(std::move(params));
 }
 

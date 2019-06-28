@@ -16,7 +16,7 @@ namespace usb {
 
 class UsbMidiSource;
 using UsbMidiSourceBase = ddk::Device<UsbMidiSource, ddk::Unbindable, ddk::Openable, ddk::Closable,
-                                      ddk::Readable, ddk::Messageable>;
+                                      ddk::Messageable>;
 
 class UsbMidiSource : public UsbMidiSourceBase,
                       public llcpp::fuchsia::hardware::midi::Device::Interface,
@@ -39,11 +39,12 @@ public:
     void DdkRelease();
     zx_status_t DdkOpen(zx_device_t** dev_out, uint32_t flags);
     zx_status_t DdkClose(uint32_t flags);
-    zx_status_t DdkRead(void* buf, size_t count, zx_off_t off, size_t* actual);
     zx_status_t DdkMessage(fidl_msg_t* msg, fidl_txn_t* txn);
 
     // FIDL methods.
     virtual void GetDirection(GetDirectionCompleter::Sync completer);
+    void Read(uint64_t count, ReadCompleter::Sync completer);
+    void Write(::fidl::VectorView<uint8_t> data, WriteCompleter::Sync completer);
 
 private:
     zx_status_t Init(int index, const usb_interface_descriptor_t* intf,

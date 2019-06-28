@@ -4,6 +4,8 @@
 
 library fuchsia.hardware.midi;
 
+using zx;
+
 /// Describes what type of MIDI device an implementation of Device represents
 enum Direction : uint8 {
     /// A MIDI source
@@ -15,4 +17,10 @@ enum Direction : uint8 {
 protocol Device {
     /// Get direction of the MIDI device
     GetDirection() -> (Direction direction);
+
+    /// Reads MIDI data from a MIDI source
+    Read(uint64 count) -> (bytes data) error zx.status;
+	
+    /// Reads MIDI data to a MIDI sink
+    Write(bytes data) -> (uint64 actual) error zx.status;
 };

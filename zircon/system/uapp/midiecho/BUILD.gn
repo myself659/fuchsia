@@ -8,6 +8,7 @@ executable("midiecho") {
   ]
   deps = [
     "$zx/system/fidl/fuchsia-hardware-midi:llcpp",
+    "$zx/system/ulib/fbl",
     "$zx/system/ulib/fdio",
     "$zx/system/ulib/zircon",
   ]
