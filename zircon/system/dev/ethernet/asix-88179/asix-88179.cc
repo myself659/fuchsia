@@ -31,9 +31,8 @@
 
 namespace eth {
 
-zx_status_t Asix88179Ethernet::ReadMac(uint8_t reg_addr,
-                           uint8_t reg_len,
-                           void* data) {
+zx_status_t Asix88179Ethernet::ReadMac(uint8_t reg_addr, uint8_t reg_len, void* data) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     size_t out_length;
     zx_status_t status = usb_.ControlIn(USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
                                         AX88179_REQ_MAC, reg_addr, reg_len, ZX_TIME_INFINITE,
@@ -47,9 +46,8 @@ zx_status_t Asix88179Ethernet::ReadMac(uint8_t reg_addr,
     return status;
 }
 
-zx_status_t Asix88179Ethernet::WriteMac(uint8_t reg_addr,
-                            uint8_t reg_len,
-                            void* data) {
+zx_status_t Asix88179Ethernet::WriteMac(uint8_t reg_addr, uint8_t reg_len, void* data) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (driver_get_log_flags() & DDK_LOG_SPEW) {
         zxlogf(SPEW, "ax88179: write mac %#x:\n", reg_addr);
         hexdump8(data, reg_len);
@@ -59,6 +57,7 @@ zx_status_t Asix88179Ethernet::WriteMac(uint8_t reg_addr,
 }
 
 zx_status_t Asix88179Ethernet::ReadPhy(uint8_t reg_addr, uint16_t* data) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     size_t out_length;
     zx_status_t status = usb_.ControlIn(USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
                                         AX88179_REQ_PHY, AX88179_PHY_ID, reg_addr, ZX_TIME_INFINITE,
@@ -70,6 +69,7 @@ zx_status_t Asix88179Ethernet::ReadPhy(uint8_t reg_addr, uint16_t* data) {
 }
 
 zx_status_t Asix88179Ethernet::WritePhy(uint8_t reg_addr, uint16_t data) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zxlogf(SPEW, "ax88179: write phy %#x: %#x\n", reg_addr, data);
     return usb_.ControlOut(USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
                            AX88179_REQ_PHY, AX88179_PHY_ID, reg_addr, ZX_TIME_INFINITE,
@@ -114,6 +114,7 @@ static uint8_t ax88179_bulk_in_config[5][5][5] = {
 };
 
 zx_status_t Asix88179Ethernet::ConfigureBulkIn(uint8_t plsr) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     uint8_t usb_mode = plsr & AX88179_PLSR_USB_MASK;
     if (usb_mode & (usb_mode-1)) {
         zxlogf(ERROR, "ax88179: invalid usb mode: %#x\n", usb_mode);
@@ -134,6 +135,7 @@ zx_status_t Asix88179Ethernet::ConfigureBulkIn(uint8_t plsr) {
 }
 
 zx_status_t Asix88179Ethernet::ConfigureMediumMode() {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     uint16_t data = 0;
     zx_status_t status = ReadPhy(AX88179_PHY_PHYSR, &data);
     if (status < 0) {
@@ -165,13 +167,13 @@ zx_status_t Asix88179Ethernet::ConfigureMediumMode() {
 }
 
 zx_status_t Asix88179Ethernet::Recv(usb_request_t* request) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zxlogf(SPEW, "ax88179: request len %" PRIu64"\n", request->response.actual);
 
     if (request->response.actual < 4) {
         zxlogf(ERROR, "ax88179: Recv short packet\n");
         return ZX_ERR_INTERNAL;
     }
-
     uint8_t* read_data;
     zx_status_t status = usb_request_mmap(request, reinterpret_cast<void**>(&read_data));
     if (status != ZX_OK) {
@@ -242,6 +244,7 @@ zx_status_t Asix88179Ethernet::Recv(usb_request_t* request) {
 }
 
 void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (request->response.status == ZX_ERR_IO_NOT_PRESENT) {
         usb_request_release(request);
         return;
@@ -279,6 +282,7 @@ void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
 
 zx_status_t Asix88179Ethernet::AppendToTxReq(usb_request_t* req,
                                  ethmac_netbuf_t* netbuf) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_off_t offset = ALIGN(req->header.length, 4);
     if (offset + sizeof(ax88179_tx_hdr_t) + netbuf->data_size > USB_BUF_SIZE) {
         return ZX_ERR_BUFFER_TOO_SMALL;
@@ -294,6 +298,7 @@ zx_status_t Asix88179Ethernet::AppendToTxReq(usb_request_t* req,
 }
 
 void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (request->response.status == ZX_ERR_IO_NOT_PRESENT) {
         usb_request_release(request);
         return;
@@ -354,13 +359,17 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
 }
 
-void Asix88179Ethernet::InterruptComplete(void* ctx, usb_request_t* request) {
+void Asix88179Ethernet::RequestComplete(void* ctx, usb_request_t* request) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
 
-    sync_completion_signal(&completion_);
+    if (ctx) {
+        sync_completion_signal(static_cast<sync_completion_t*>(ctx));
+    }
 }
 
 void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
     fbl::AutoLock lock(&mutex_);
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (request->response.status == ZX_OK && request->response.actual == sizeof(status_)) {
         uint8_t status[INTR_REQ_SIZE];
 
@@ -406,6 +415,7 @@ void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
 }
 
 zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* netbuf) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     size_t length = netbuf->data_size;
     txn_info_t* txn = containerof(netbuf, txn_info_t, netbuf);
 
@@ -492,10 +502,12 @@ bufs_full:
 }
 
 void Asix88179Ethernet::Unbind(void* ctx) {
+    zxlogf(INFO, "ax88179: unbind\n");
     device_remove(device_);
 }
 
 void Asix88179Ethernet::Free() {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     usb_request_t* req;
     while ((req = usb_req_list_remove_head(&free_read_reqs_, parent_req_size_)) != NULL) {
         usb_request_release(req);
@@ -509,15 +521,19 @@ void Asix88179Ethernet::Free() {
     usb_request_release(interrupt_req_);
 }
 
-void Asix88179Ethernet::Release(void* ctx) {
+void Asix88179Ethernet::DdkRelease() {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
 
     // wait for thread to finish before cleaning up
     thrd_join(thread_, NULL);
 
-  Free();
+    Free();
+
+    delete this;
 }
 
 zx_status_t Asix88179Ethernet::EthmacQuery(uint32_t options, ethmac_info_t* info) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (options) {
         return ZX_ERR_INVALID_ARGS;
     }
@@ -531,11 +547,13 @@ zx_status_t Asix88179Ethernet::EthmacQuery(uint32_t options, ethmac_info_t* info
 }
 
 void Asix88179Ethernet::EthmacStop() {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     fbl::AutoLock lock(&mutex_);
     ifc_.ops = NULL;
 }
 
 zx_status_t Asix88179Ethernet::EthmacStart(const ethmac_ifc_protocol_t* ifc) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_status_t status = ZX_OK;
 
     fbl::AutoLock lock(&mutex_);
@@ -550,6 +568,7 @@ zx_status_t Asix88179Ethernet::EthmacStart(const ethmac_ifc_protocol_t* ifc) {
 }
 
 zx_status_t Asix88179Ethernet::TwiddleRcrBit(uint16_t bit, bool on) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     uint16_t rcr_bits;
     zx_status_t status = ReadMac(AX88179_MAC_RCR, 2, &rcr_bits);
     if (status != ZX_OK) {
@@ -569,10 +588,12 @@ zx_status_t Asix88179Ethernet::TwiddleRcrBit(uint16_t bit, bool on) {
 }
 
 zx_status_t Asix88179Ethernet::SetPromisc(bool on) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     return TwiddleRcrBit(AX88179_RCR_PROMISC, on);
 }
 
 zx_status_t Asix88179Ethernet::SetMulticastPromisc(bool on) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (multicast_filter_overflow_ && !on) {
         return ZX_OK;
     }
@@ -580,6 +601,7 @@ zx_status_t Asix88179Ethernet::SetMulticastPromisc(bool on) {
 }
 
 void Asix88179Ethernet::SetFilterBit(const uint8_t* mac, uint8_t* filter) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     // Invert the seed (standard is ~0) and output to get usable bits.
     uint32_t crc = ~crc32(0, mac, ETH_MAC_SIZE);
     uint8_t reverse[8] = {0, 4, 2, 6, 1, 5, 3, 7};
@@ -589,6 +611,7 @@ void Asix88179Ethernet::SetFilterBit(const uint8_t* mac, uint8_t* filter) {
 zx_status_t Asix88179Ethernet::SetMulticastFilter(int32_t n_addresses,
                                       const uint8_t* address_bytes,
                                       size_t address_size) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_status_t status = ZX_OK;
     multicast_filter_overflow_ = (n_addresses == ETHMAC_MULTICAST_FILTER_OVERFLOW) ||
         (n_addresses > MAX_MULTICAST_FILTER_ADDRS);
@@ -616,6 +639,7 @@ zx_status_t Asix88179Ethernet::EthmacSetParam(uint32_t param,
                                         int32_t value,
                                         const void* data,
                                         size_t data_size) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_status_t status = ZX_OK;
 
     fbl::AutoLock lock(&mutex_);
@@ -667,16 +691,10 @@ void Asix88179Ethernet::DumpRegs() {
 }
 
 int Asix88179Ethernet::Thread() {
+    zxlogf(ERROR, "ax88179: in %s:\n", __func__);
     uint32_t data = 0;
     uint64_t count = 0;
     usb_request_t* req = interrupt_req_;
-
-    usb_request_complete_t complete = {
-        .callback = nullptr,
-//TODO: Jamie        .callback = InterruptComplete,
-        .ctx = this,
-    };
-
     uint16_t phy_data = 0;
 
     // Enable embedded PHY
@@ -800,17 +818,26 @@ int Asix88179Ethernet::Thread() {
     }
 
     // Make the device visible
-    device_make_visible(device_);
+    DdkMakeVisible();
 
     while (true) {
-        sync_completion_reset(&completion_);
+        sync_completion_t completion;
+        usb_request_complete_t complete = {
+            .callback = [](void* ctx, usb_request_t* request) {
+                sync_completion_signal(reinterpret_cast<sync_completion_t*>(ctx));
+            },
+            .ctx = &completion,
+        };
         usb_.RequestQueue(req, &complete);
-        sync_completion_wait(&completion_, ZX_TIME_INFINITE);
+        sync_completion_wait(&completion, ZX_TIME_INFINITE);
         if (req->response.status != ZX_OK) {
+            zxlogf(ERROR, "ax88179: USB request queue failed: %d\n", status);
             return req->response.status;
         }
         count++;
-      HandleInterrupt(req);
+        /*
+        HandleInterrupt(req);
+*/
 #if AX88179_DEBUG_VERBOSE
         if (count % 32 == 0) {
             ax88179_dump_regs();
@@ -819,22 +846,18 @@ int Asix88179Ethernet::Thread() {
     }
 
 fail:
-    device_remove(device_);
+//TOOD: Jamie    device_remove(device_);
     return status;
-}
-
-void Asix88179Ethernet::DdkRelease() {
-    zxlogf(INFO, "ax88179: release...\n");
-    delete this;
 }
 
 void Asix88179Ethernet::DdkUnbind() {
     zxlogf(INFO, "ax88179: Unbind\n");
-    //ShutDown();
+    //TODO: Jamie stop the thread ShutDown();
     DdkRemove();
 }
 
 zx_status_t Asix88179Ethernet::Init() {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_status_t status;
     int ret = 0;
 
@@ -851,7 +874,6 @@ zx_status_t Asix88179Ethernet::Init() {
     }
 
     auto interface = usb_interface_list->begin();
-
     const usb_interface_descriptor_t* interface_descriptor = interface->descriptor();
     if (interface == usb_interface_list->end()) {
         return ZX_ERR_NOT_SUPPORTED;
@@ -963,10 +985,12 @@ zx_status_t Asix88179Ethernet::Init() {
             return static_cast<Asix88179Ethernet*>(arg)->Thread();
         }, this, "asix-88179-thread");
     if (ret != thrd_success) {
+        zxlogf(ERROR, "ax88179: failed to create worker thread: %d\n", ret);
         device_remove(device_);
         return ZX_ERR_BAD_STATE;
     }
 
+    zxlogf(INFO, "ax88179: started: %d\n", ret);
     return ZX_OK;
 
 fail:
@@ -976,6 +1000,7 @@ fail:
 }
 
 zx_status_t Asix88179Ethernet::Bind(void* ctx, zx_device_t* dev) {
+    zxlogf(INFO, "ax88179: in %s:\n", __func__);
   fbl::AllocChecker ac;
   auto eth_device = fbl::make_unique_checked<Asix88179Ethernet>(&ac, dev);
 

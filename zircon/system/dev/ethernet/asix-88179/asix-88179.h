@@ -56,8 +56,6 @@ typedef struct txn_info {
   list_node_t node;
 } txn_info_t;
 
-
-
 class Asix88179Ethernet;
 
 using DeviceType = ddk::Device<Asix88179Ethernet, ddk::Unbindable>;
@@ -112,15 +110,13 @@ public:
 
     void WriteComplete(void* ctx, usb_request_t* request);
 
-    void InterruptComplete(void* ctx, usb_request_t* request);
+    void RequestComplete(void* ctx, usb_request_t* request);
 
     void HandleInterrupt( usb_request_t* request);
 
     void Unbind(void* ctx);
 
     void Free();
-
-    void Release(void* ctx);
 
     zx_status_t TwiddleRcrBit(uint16_t bit, bool on);
 
@@ -157,7 +153,6 @@ public:
 
     // interrupt in request
     usb_request_t* interrupt_req_;
-    sync_completion_t completion_;
 
     // pool of free USB bulk requests
     list_node_t free_read_reqs_;
