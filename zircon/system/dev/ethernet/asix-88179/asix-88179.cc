@@ -218,9 +218,9 @@ void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
         usb_.ResetEndpoint(bulk_in_addr_);
     } else if (request->response.status == ZX_ERR_IO_INVALID) {
         zxlogf(TRACE, "ax88179: ReadComplete Slowing down the requests by %d usec"
-               " and resetting the recv endpoint\n", ETHMAC_RECV_DELAY);
-        if (rx_endpoint_delay_ < ETHMAC_MAX_RECV_DELAY) {
-            rx_endpoint_delay_ += ETHMAC_RECV_DELAY;
+               " and resetting the recv endpoint\n", kEthMacRecvDelay);
+        if (rx_endpoint_delay_ < kEthMacMaxRecvDelay) {
+            rx_endpoint_delay_ += kEthMacRecvDelay;
         }
         usb_.ResetEndpoint(bulk_in_addr_);
     } else if ((request->response.status == ZX_OK) && ifc_.ops) {
@@ -298,9 +298,9 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
         usb_.ResetEndpoint(bulk_out_addr_);
     } else if (request->response.status == ZX_ERR_IO_INVALID) {
         zxlogf(TRACE, "ax88179: WriteComplete Slowing down the requests by %d usec"
-               " and resetting the transmit endpoint\n", ETHMAC_TRANSMIT_DELAY);
-        if (tx_endpoint_delay_ < ETHMAC_MAX_TRANSMIT_DELAY) {
-            tx_endpoint_delay_ += ETHMAC_TRANSMIT_DELAY;
+               " and resetting the transmit endpoint\n", kEthMacTransmitDelay);
+        if (tx_endpoint_delay_ < kEthMacMaxTransmitDelay) {
+            tx_endpoint_delay_ += kEthMacTransmitDelay;
         }
         usb_.ResetEndpoint(bulk_out_addr_);
     }
@@ -877,8 +877,8 @@ zx_status_t Asix88179Ethernet::Init() {
     parent_req_size_ = usb_.GetRequestSize();
     uint64_t req_size = parent_req_size_ + sizeof(usb_request_complete_t);
 
-    rx_endpoint_delay_ = ETHMAC_INITIAL_RECV_DELAY;
-    tx_endpoint_delay_ = ETHMAC_INITIAL_TRANSMIT_DELAY;
+    rx_endpoint_delay_ = kEthMacInitialRecvDelay;
+    tx_endpoint_delay_ = kEthMacInitialTransmitDelay;
 
     for (int i = 0; i < kReadReqCount; i++) {
         usb_request_t* req;
