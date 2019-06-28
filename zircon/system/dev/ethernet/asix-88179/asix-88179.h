@@ -69,52 +69,6 @@ public:
     static zx_status_t Bind(void* ctx, zx_device_t* device);
 
  private:
-    zx_status_t Init();
-
-    zx_status_t ReadMac(uint8_t reg_addr, uint8_t reg_len, const void* data);
-
-    zx_status_t WriteMac(uint8_t reg_addr,  uint8_t reg_len, const void* data);
-
-    zx_status_t ReadPhy(uint8_t reg_addr, uint16_t* data);
-
-    zx_status_t WritePhy(uint8_t reg_addr, uint16_t data);
-
-    zx_status_t ConfigureBulkIn(uint8_t plsr);
-
-    zx_status_t ConfigureMediumMode();
-
-    zx_status_t Recv(usb_request_t* request);
-
-    void ReadComplete(void* ctx, usb_request_t* request);
-
-    zx_status_t AppendToTxReq(usb_request_t* req, ethmac_netbuf_t* netbuf);
-
-    void WriteComplete(void* ctx, usb_request_t* request);
-
-    void RequestComplete(void* ctx, usb_request_t* request);
-
-    void HandleInterrupt( usb_request_t* request);
-
-    void Unbind(void* ctx);
-
-    void Free();
-
-    zx_status_t TwiddleRcrBit(uint16_t bit, bool on);
-
-    zx_status_t SetPromisc(bool on);
-
-    zx_status_t SetMulticastPromisc(bool on);
-
-    void SetFilterBit(const uint8_t* mac, uint8_t* filter);
-
-    zx_status_t SetMulticastFilter(int32_t n_addresses,
-                                                      const uint8_t* address_bytes,
-                                                      size_t address_size);
-
-    void DumpRegs();
-
-    int Thread();
-
     struct RxHdr {
         uint16_t num_pkts;
         uint16_t pkt_hdr_off;
@@ -167,6 +121,54 @@ public:
             { 0x07, 0x4f, 0x00, 0x12, 0xff },  // 1000 Mbps
         },
     };
+
+    zx_status_t Init();
+
+    zx_status_t ReadMac(uint8_t reg_addr, uint8_t reg_len, const void* data);
+
+    zx_status_t WriteMac(uint8_t reg_addr,  uint8_t reg_len, const void* data);
+
+    zx_status_t ReadPhy(uint8_t reg_addr, uint16_t* data);
+
+    zx_status_t WritePhy(uint8_t reg_addr, uint16_t data);
+
+    zx_status_t ConfigureBulkIn(uint8_t plsr);
+
+    zx_status_t ConfigureMediumMode();
+
+    zx_status_t Recv(usb_request_t* request);
+
+    void ReadComplete(void* ctx, usb_request_t* request);
+
+    zx_status_t AppendToTxReq(usb_request_t* req, ethmac_netbuf_t* netbuf);
+
+    void WriteComplete(void* ctx, usb_request_t* request);
+
+    void RequestComplete(void* ctx, usb_request_t* request);
+
+    void HandleInterrupt( usb_request_t* request);
+
+    void Unbind(void* ctx);
+
+    void Free();
+
+    zx_status_t AddToPendingList(TxnInfo* txn);
+
+    zx_status_t TwiddleRcrBit(uint16_t bit, bool on);
+
+    zx_status_t SetPromisc(bool on);
+
+    zx_status_t SetMulticastPromisc(bool on);
+
+    void SetFilterBit(const uint8_t* mac, uint8_t* filter);
+
+    zx_status_t SetMulticastFilter(int32_t n_addresses,
+                                                      const uint8_t* address_bytes,
+                                                      size_t address_size);
+
+    void DumpRegs();
+
+    int Thread();
 
     zx_device_t* device_;
 

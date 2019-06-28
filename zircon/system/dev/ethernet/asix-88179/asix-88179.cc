@@ -75,7 +75,6 @@ zx_status_t Asix88179Ethernet::WritePhy(uint8_t reg_addr, uint16_t data) {
                            &data, sizeof(data));
 }
 
-
 zx_status_t Asix88179Ethernet::ConfigureBulkIn(uint8_t plsr) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     uint8_t usb_mode = plsr & AX88179_PLSR_USB_MASK;
@@ -91,7 +90,7 @@ zx_status_t Asix88179Ethernet::ConfigureBulkIn(uint8_t plsr) {
 
     zx_status_t status = WriteMac(AX88179_MAC_RQCR, 5,
                                   kBulkInConfig[usb_mode][speed >> 4]);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_RQCR, status);
     }
     return status;
@@ -101,7 +100,7 @@ zx_status_t Asix88179Ethernet::ConfigureMediumMode() {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     uint16_t data = 0;
     zx_status_t status = ReadPhy(AX88179_PHY_PHYSR, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: ReadPhy to %#x failed: %d\n", AX88179_PHY_PHYSR, status);
         return status;
     }
@@ -113,14 +112,14 @@ zx_status_t Asix88179Ethernet::ConfigureMediumMode() {
         return ZX_ERR_NOT_SUPPORTED;
     }
     status = WriteMac(AX88179_MAC_MSR, 2, kMediaMode[mode]);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_MSR, status);
         return status;
     }
 
     data = 0;
     status = ReadMac(AX88179_MAC_PLSR, 1, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: ReadMac to %#x failed: %d\n", AX88179_MAC_PLSR, status);
         return status;
     }
@@ -380,6 +379,14 @@ void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
     }
 }
 
+zx_status_t Asix88179Ethernet::AddToPendingList(TxnInfo* txn) {
+    list_add_tail(&pending_netbuf_, &txn->node);
+    zxlogf(DEBUG1, "ax88179: buffers full, there are %zu pending netbufs\n",
+        list_length(&pending_netbuf_));
+
+    return ZX_ERR_SHOULD_WAIT;
+}
+
 zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* netbuf) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     size_t length = netbuf->data_size;
@@ -407,7 +414,7 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
     // If we already have entries in our pending_netbuf list we should put this one there, too.
     // Otherwise, we may end up reordering packets.
     if (!list_is_empty(&pending_netbuf_)) {
-        goto bufs_full;
+        return AddToPendingList(txn);
     }
 
     // Find the last entry in the pending_usb_tx list
@@ -415,7 +422,7 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
         zxlogf(DEBUG1, "ax88179: no pending reqs, getting free write req\n");
         req = usb_req_list_remove_head(&free_write_reqs_, parent_req_size_);
         if (req == NULL) {
-            goto bufs_full;
+            return AddToPendingList(txn);
         }
         req->header.length = 0;
         status = usb_req_list_add_tail(&pending_usb_tx_, req, parent_req_size_);
@@ -434,7 +441,7 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
         zxlogf(DEBUG1, "ax88179: getting new write req\n");
         req = usb_req_list_remove_head(&free_write_reqs_, parent_req_size_);
         if (req == NULL) {
-            goto bufs_full;
+            return AddToPendingList(txn);
         }
         req->header.length = 0;
         status = usb_req_list_add_tail(&pending_usb_tx_, req, parent_req_size_);
@@ -460,12 +467,6 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
     usb_tx_in_flight_++;
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
     return ZX_OK;
-
-bufs_full:
-    list_add_tail(&pending_netbuf_, &txn->node);
-    zxlogf(DEBUG1, "ax88179: buffers full, there are %zu pending netbufs\n",
-            list_length(&pending_netbuf_));
-    return ZX_ERR_SHOULD_WAIT;
 }
 
 void Asix88179Ethernet::Unbind(void* ctx) {
@@ -636,7 +637,7 @@ zx_status_t Asix88179Ethernet::EthmacSetParam(uint32_t param,
     do { \
         reg = 0; \
         zx_status_t status = ReadMac(r, len, &reg); \
-        if (status < 0) { \
+        if (status != ZX_OK) { \
             zxlogf(ERROR, "ax88179: could not read reg " #r ": %d\n", status); \
         } else { \
             zxlogf(SPEW, "ax88179: reg " #r " = %" PRIx64 "\n", reg); \
@@ -660,39 +661,38 @@ void Asix88179Ethernet::DumpRegs() {
 int Asix88179Ethernet::Thread() {
     zxlogf(ERROR, "ax88179: in %s:\n", __func__);
     uint32_t data = 0;
-    uint64_t count = 0;
     usb_request_t* req = interrupt_req_;
     uint16_t phy_data = 0;
 
     // Enable embedded PHY
     zx_status_t status = WriteMac(AX88179_MAC_EPPRCR, 2, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_EPPRCR, status);
-        goto fail;
+        return status;
     }
     zx_nanosleep(zx_deadline_after(ZX_MSEC(1)));
     data = 0x0020;
     status = WriteMac(AX88179_MAC_EPPRCR, 2, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_EPPRCR, status);
-        goto fail;
+        return status;
     }
     zx_nanosleep(zx_deadline_after(ZX_MSEC(200)));
 
     // Switch clock to normal speed
     data = 0x03;
     status = WriteMac(AX88179_MAC_CLKSR, 1, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_CLKSR, status);
-        goto fail;
+        return status;
     }
     zx_nanosleep(zx_deadline_after(ZX_MSEC(1)));
 
     // Read the MAC addr
     status = ReadMac(AX88179_MAC_NIDR, 6, mac_addr_);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: ReadMac to %#x failed: %d\n", AX88179_MAC_NIDR, status);
-        goto fail;
+        return status;
     }
 
     zxlogf(INFO, "ax88179: MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n",
@@ -703,67 +703,67 @@ int Asix88179Ethernet::Thread() {
     // Ensure that the MAC RX is disabled
     data = 0;
     status = WriteMac(AX88179_MAC_RCR, 2, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_RCR, status);
-        goto fail;
+        return status;
     }
     //*/
 
     // Set RX Bulk-in sizes -- use USB 3.0/1000Mbps at this point
     status = ConfigureBulkIn(AX88179_PLSR_USB_SS | AX88179_PLSR_EPHY_1000);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_RQCR, status);
-        goto fail;
+        return status;
     }
 
     // Configure flow control watermark
     data = 0x3c;
     status = WriteMac(AX88179_MAC_PWLLR, 1, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_PWLLR, status);
-        goto fail;
+        return status;
     }
     data = 0x5c;
     status = WriteMac(AX88179_MAC_PWLHR, 1, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_PWLHR, status);
-        goto fail;
+        return status;
     }
 
     // RX/TX checksum offload: ipv4, tcp, udp, tcpv6, udpv6
     data = (1<<6) | (1<<5) | (1<<2) | (1<<1) | (1<<0);
     status = WriteMac(AX88179_MAC_CRCR, 1, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_CRCR, status);
-        goto fail;
+        return status;
     }
     status = WriteMac(AX88179_MAC_CTCR, 1, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_CTCR, status);
-        goto fail;
+        return status;
     }
 
     // TODO: PHY LED
 
     // PHY auto-negotiation
     status = ReadPhy(AX88179_PHY_BMCR, &phy_data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: ReadPhy to %#x failed: %d\n", AX88179_PHY_BMCR, status);
-        goto fail;
+        return status;
     }
     phy_data |= 0x1200;
     status = WritePhy(AX88179_PHY_BMCR, phy_data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WritePhy to %#x failed: %d\n", AX88179_PHY_BMCR, status);
-        goto fail;
+        return status;
     }
 
     // Default Ethernet medium mode
     data = 0x013b;
     status = WriteMac(AX88179_MAC_MSR, 2, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_MSR, status);
-        goto fail;
+        return status;
     }
 
     // Enable MAC RX
@@ -771,17 +771,17 @@ int Asix88179Ethernet::Thread() {
     data = AX88179_RCR_AMALL | AX88179_RCR_AB | AX88179_RCR_AM | AX88179_RCR_SO |
         AX88179_RCR_DROP_CRCE_N | AX88179_RCR_IPE_N;
     status = WriteMac(AX88179_MAC_RCR, 2, &data);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_RCR, status);
-        goto fail;
+        return status;
     }
 
     uint8_t filter[MULTICAST_FILTER_NBYTES];
     memset(filter, 0, MULTICAST_FILTER_NBYTES);
     status = WriteMac(AX88179_MAC_MFA, MULTICAST_FILTER_NBYTES, &filter);
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_MFA, status);
-        goto fail;
+        return status;
     }
 
     // Make the device visible
@@ -801,19 +801,10 @@ int Asix88179Ethernet::Thread() {
             zxlogf(ERROR, "ax88179: USB request queue failed: %d\n", status);
             return req->response.status;
         }
-        count++;
         HandleInterrupt(req);
-
-#if AX88179_DEBUG_VERBOSE
-        if (count % 32 == 0) {
-            ax88179_dump_regs();
-        }
-#endif
     }
 
-fail:
-//TOOD: Jamie    device_remove(device_);
-    return status;
+    return 0;
 }
 
 void Asix88179Ethernet::DdkUnbind() {
@@ -893,7 +884,8 @@ zx_status_t Asix88179Ethernet::Init() {
         usb_request_t* req;
         status = usb_request_alloc(&req, USB_BUF_SIZE, bulk_in_addr, req_size);
         if (status != ZX_OK) {
-            goto fail;
+            Free();
+            return status;
         }
         status = usb_req_list_add_head(&free_read_reqs_, req, parent_req_size_);
         ZX_DEBUG_ASSERT(status == ZX_OK);
@@ -902,7 +894,8 @@ zx_status_t Asix88179Ethernet::Init() {
         usb_request_t* req;
         status = usb_request_alloc(&req, USB_BUF_SIZE, bulk_out_addr, req_size);
         if (status != ZX_OK) {
-            goto fail;
+            Free();
+            return status;
         }
         status = usb_req_list_add_head(&free_write_reqs_, req, parent_req_size_);
         ZX_DEBUG_ASSERT(status == ZX_OK);
@@ -910,7 +903,8 @@ zx_status_t Asix88179Ethernet::Init() {
     usb_request_t* int_req;
     status = usb_request_alloc(&int_req, INTR_REQ_SIZE, intr_addr, req_size);
     if (status != ZX_OK) {
-        goto fail;
+        Free();
+        return status;
     }
     interrupt_req_ = int_req;
 
@@ -941,9 +935,10 @@ zx_status_t Asix88179Ethernet::Init() {
     }
 */
     status = DdkAdd("ax88179");
-    if (status < 0) {
+    if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: failed to create device: %d\n", status);
-        goto fail;
+        Free();
+        return status;
     }
 
     ret = thrd_create_with_name(&thread_,
@@ -956,13 +951,7 @@ zx_status_t Asix88179Ethernet::Init() {
         return ZX_ERR_BAD_STATE;
     }
 
-    zxlogf(INFO, "ax88179: started: %d\n", ret);
     return ZX_OK;
-
-fail:
-    zxlogf(ERROR, "ax88179: Init failed: %d\n", status);
-    Free();
-    return status;
 }
 
 zx_status_t Asix88179Ethernet::Bind(void* ctx, zx_device_t* dev) {
