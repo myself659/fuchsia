@@ -40,21 +40,6 @@ namespace eth {
 #define ETHMAC_INITIAL_TRANSMIT_DELAY 15
 #define ETHMAC_INITIAL_RECV_DELAY 0
 
-typedef struct {
-  uint16_t num_pkts;
-  uint16_t pkt_hdr_off;
-} ax88179_rx_hdr_t;
-
-typedef struct {
-  uint16_t tx_len;
-  uint16_t unused[3];
-  // TODO: support additional tx header fields
-} ax88179_tx_hdr_t;
-
-typedef struct txn_info {
-  ethmac_netbuf_t netbuf;
-  list_node_t node;
-} txn_info_t;
 
 class Asix88179Ethernet;
 
@@ -86,13 +71,9 @@ public:
  private:
     zx_status_t Init();
 
-    zx_status_t ReadMac(uint8_t reg_addr,
-                                           uint8_t reg_len,
-                                           void* data);
+    zx_status_t ReadMac(uint8_t reg_addr, uint8_t reg_len, const void* data);
 
-    zx_status_t WriteMac(uint8_t reg_addr,
-                                            uint8_t reg_len,
-                                            void* data);
+    zx_status_t WriteMac(uint8_t reg_addr,  uint8_t reg_len, const void* data);
 
     zx_status_t ReadPhy(uint8_t reg_addr, uint16_t* data);
 
@@ -134,14 +115,62 @@ public:
 
     int Thread();
 
+    struct RxHdr {
+        uint16_t num_pkts;
+        uint16_t pkt_hdr_off;
+    };
+
+    struct TxHdr {
+        uint16_t tx_len;
+        uint16_t unused[3];
+        // TODO: support additional tx header fields
+    };
+
+    struct TxnInfo {
+        ethmac_netbuf_t netbuf;
+        list_node_t node;
+    };
+
+    static constexpr uint8_t kMediaMode[6][2] = {
+        { 0x30, 0x01 }, // 10 Mbps, half-duplex
+        { 0x32, 0x01 }, // 10 Mbps, full-duplex
+        { 0x30, 0x03 }, // 100 Mbps, half-duplex
+        { 0x32, 0x03 }, // 100 Mbps, full-duplex
+        { 0, 0 },       // unused
+        { 0x33, 0x01 }, // 1000Mbps, full-duplex
+    };
+
+    // The array indices here correspond to the bit positions in the AX88179 MAC
+    // PLSR register.
+    static constexpr uint8_t kBulkInConfig[5][5][5] = {
+        { { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, },
+        { // Full Speed
+            { 0 },
+            { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 10 Mbps
+            { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 100 Mbps
+            { 0 },
+            { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 1000 Mbps
+        },
+        { // High Speed
+            { 0 },
+            { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 10 Mbps
+            { 0x07, 0xae, 0x07, 0x18, 0xff },  // 100 Mbps
+            { 0 },
+            { 0x07, 0x20, 0x03, 0x16, 0xff },  // 1000 Mbps
+        },
+        { { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, },
+        { // Super Speed
+            { 0 },
+            { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 10 Mbps
+            { 0x07, 0xae, 0x07, 0x18, 0xff },  // 100 Mbps
+            { 0 },
+            { 0x07, 0x4f, 0x00, 0x12, 0xff },  // 1000 Mbps
+        },
+    };
+
     zx_device_t* device_;
 
     usb::UsbDevice usb_;
-
-/*TODO: Jamie - delete
-    zx_device_t* usb_device_;
-    usb_protocol_t usb_;
-*/
 
     uint8_t mac_addr_[ETH_MAC_SIZE];
     uint8_t status_[INTR_REQ_SIZE];

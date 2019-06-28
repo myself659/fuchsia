@@ -7,7 +7,6 @@
 #include <ddk/device.h>
 #include <ddk/driver.h>
 #include <ddk/protocol/ethernet.h>
-//TODO: Jamie delete #include <ddk/protocol/usb.h>
 #include <fbl/auto_call.h>
 #include <fbl/auto_lock.h>
 #include <fbl/unique_ptr.h>
@@ -31,12 +30,12 @@
 
 namespace eth {
 
-zx_status_t Asix88179Ethernet::ReadMac(uint8_t reg_addr, uint8_t reg_len, void* data) {
+zx_status_t Asix88179Ethernet::ReadMac(uint8_t reg_addr, uint8_t reg_len, const void* data) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     size_t out_length;
     zx_status_t status = usb_.ControlIn(USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
                                         AX88179_REQ_MAC, reg_addr, reg_len, ZX_TIME_INFINITE,
-                                        data, reg_len, &out_length);
+                                        const_cast<void*>(data), reg_len, &out_length);
     if (driver_get_log_flags() & DDK_LOG_SPEW) {
         zxlogf(SPEW, "ax88179: read mac %#x:\n", reg_addr);
         if (status == ZX_OK) {
@@ -46,14 +45,14 @@ zx_status_t Asix88179Ethernet::ReadMac(uint8_t reg_addr, uint8_t reg_len, void* 
     return status;
 }
 
-zx_status_t Asix88179Ethernet::WriteMac(uint8_t reg_addr, uint8_t reg_len, void* data) {
+zx_status_t Asix88179Ethernet::WriteMac(uint8_t reg_addr, uint8_t reg_len, const void* data) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (driver_get_log_flags() & DDK_LOG_SPEW) {
         zxlogf(SPEW, "ax88179: write mac %#x:\n", reg_addr);
         hexdump8(data, reg_len);
     }
-    return usb_.ControlOut(USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
-                           AX88179_REQ_MAC, reg_addr, reg_len, ZX_TIME_INFINITE, data, reg_len);
+    return usb_.ControlOut(USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE, AX88179_REQ_MAC,
+        reg_addr, reg_len, ZX_TIME_INFINITE, const_cast<void*>(data), reg_len);
 }
 
 zx_status_t Asix88179Ethernet::ReadPhy(uint8_t reg_addr, uint16_t* data) {
@@ -76,42 +75,6 @@ zx_status_t Asix88179Ethernet::WritePhy(uint8_t reg_addr, uint16_t data) {
                            &data, sizeof(data));
 }
 
-static uint8_t ax88179_media_mode[6][2] = {
-    { 0x30, 0x01 }, // 10 Mbps, half-duplex
-    { 0x32, 0x01 }, // 10 Mbps, full-duplex
-    { 0x30, 0x03 }, // 100 Mbps, half-duplex
-    { 0x32, 0x03 }, // 100 Mbps, full-duplex
-    { 0, 0 },       // unused
-    { 0x33, 0x01 }, // 1000Mbps, full-duplex
-};
-
-// The array indices here correspond to the bit positions in the AX88179 MAC
-// PLSR register.
-static uint8_t ax88179_bulk_in_config[5][5][5] = {
-    { { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, },
-    { // Full Speed
-        { 0 },
-        { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 10 Mbps
-        { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 100 Mbps
-        { 0 },
-        { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 1000 Mbps
-    },
-    { // High Speed
-        { 0 },
-        { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 10 Mbps
-        { 0x07, 0xae, 0x07, 0x18, 0xff },  // 100 Mbps
-        { 0 },
-        { 0x07, 0x20, 0x03, 0x16, 0xff },  // 1000 Mbps
-    },
-    { { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, },
-    { // Super Speed
-        { 0 },
-        { 0x07, 0xcc, 0x4c, 0x18, 0x08 },  // 10 Mbps
-        { 0x07, 0xae, 0x07, 0x18, 0xff },  // 100 Mbps
-        { 0 },
-        { 0x07, 0x4f, 0x00, 0x12, 0xff },  // 1000 Mbps
-    },
-};
 
 zx_status_t Asix88179Ethernet::ConfigureBulkIn(uint8_t plsr) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
@@ -127,7 +90,7 @@ zx_status_t Asix88179Ethernet::ConfigureBulkIn(uint8_t plsr) {
     }
 
     zx_status_t status = WriteMac(AX88179_MAC_RQCR, 5,
-                                  ax88179_bulk_in_config[usb_mode][speed >> 4]);
+                                  kBulkInConfig[usb_mode][speed >> 4]);
     if (status < 0) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_RQCR, status);
     }
@@ -149,7 +112,7 @@ zx_status_t Asix88179Ethernet::ConfigureMediumMode() {
         zxlogf(ERROR, "ax88179: mode invalid (mode=%u)\n", mode);
         return ZX_ERR_NOT_SUPPORTED;
     }
-    status = WriteMac(AX88179_MAC_MSR, 2, ax88179_media_mode[mode]);
+    status = WriteMac(AX88179_MAC_MSR, 2, kMediaMode[mode]);
     if (status < 0) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_MSR, status);
         return status;
@@ -181,8 +144,8 @@ zx_status_t Asix88179Ethernet::Recv(usb_request_t* request) {
         return status;
     }
 
-    ptrdiff_t rxhdr_off = request->response.actual - sizeof(ax88179_rx_hdr_t);
-    ax88179_rx_hdr_t* rxhdr = (ax88179_rx_hdr_t*)(read_data + rxhdr_off);
+    ptrdiff_t rxhdr_off = request->response.actual - sizeof(RxHdr);
+    RxHdr* rxhdr = reinterpret_cast<RxHdr*>(read_data + rxhdr_off);
     zxlogf(SPEW, "ax88179: rxhdr offset %u, num %u\n", rxhdr->pkt_hdr_off, rxhdr->num_pkts);
     if (rxhdr->num_pkts < 1 || rxhdr->pkt_hdr_off >= rxhdr_off) {
         zxlogf(ERROR, "ax88179: %s bad packet\n", __func__);
@@ -285,10 +248,10 @@ zx_status_t Asix88179Ethernet::AppendToTxReq(usb_request_t* req,
                                  ethmac_netbuf_t* netbuf) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_off_t offset = ALIGN(req->header.length, 4);
-    if (offset + sizeof(ax88179_tx_hdr_t) + netbuf->data_size > USB_BUF_SIZE) {
+    if (offset + sizeof(TxHdr) + netbuf->data_size > USB_BUF_SIZE) {
         return ZX_ERR_BUFFER_TOO_SMALL;
     }
-    ax88179_tx_hdr_t hdr = {
+    TxHdr hdr = {
         .tx_len = htole16(netbuf->data_size),
         .unused = {},
     };
@@ -312,17 +275,17 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
     if (!list_is_empty(&pending_netbuf_)) {
         // If we have any pending netbufs, add them to the recently-freed usb request
         request->header.length = 0;
-        txn_info_t* next_txn = list_peek_head_type(&pending_netbuf_, txn_info_t, node);
+        TxnInfo* next_txn = list_peek_head_type(&pending_netbuf_, TxnInfo, node);
         while (next_txn != NULL && AppendToTxReq(request,
                                                  &next_txn->netbuf) == ZX_OK) {
-            list_remove_head_type(&pending_netbuf_, txn_info_t, node);
+            list_remove_head_type(&pending_netbuf_, TxnInfo, node);
             { // Lock scope
                 fbl::AutoLock lock(&mutex_);
                 if (ifc_.ops) {
                     ethmac_ifc_complete_tx(&ifc_, &next_txn->netbuf, ZX_OK);
                 }
             }
-            next_txn = list_peek_head_type(&pending_netbuf_, txn_info_t, node);
+            next_txn = list_peek_head_type(&pending_netbuf_, TxnInfo, node);
         }
         status = usb_req_list_add_tail(&pending_usb_tx_, request, parent_req_size_);
         ZX_DEBUG_ASSERT(status == ZX_OK);
@@ -420,7 +383,7 @@ void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
 zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* netbuf) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     size_t length = netbuf->data_size;
-    txn_info_t* txn = containerof(netbuf, txn_info_t, netbuf);
+    TxnInfo* txn = containerof(netbuf, TxnInfo, netbuf);
 
     if (length > (AX88179_MTU + MAX_ETH_HDRS)) {
         zxlogf(ERROR, "ax88179: unsupported packet length %zu\n", length);
@@ -545,7 +508,7 @@ zx_status_t Asix88179Ethernet::EthmacQuery(uint32_t options, ethmac_info_t* info
     memset(info, 0, sizeof(*info));
     info->mtu = 1500;
     memcpy(info->mac, mac_addr_, sizeof(mac_addr_));
-    info->netbuf_size = sizeof(txn_info_t);
+    info->netbuf_size = sizeof(TxnInfo);
 
     return ZX_OK;
 }
