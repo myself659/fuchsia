@@ -268,8 +268,9 @@ void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
     if (online_) {
         zx_nanosleep(zx_deadline_after(ZX_USEC(rx_endpoint_delay_)));
         usb_request_complete_t complete = {
-            .callback = nullptr,
-//TODO: Jamie            .callback = ReadComplete,
+            .callback = [](void* ctx, usb_request_t* request) {
+                reinterpret_cast<Asix88179Ethernet*>(ctx)->ReadComplete(ctx, request);
+            },
             .ctx = this,
         };
         usb_.RequestQueue(request, &complete);
@@ -350,8 +351,9 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
                  next, next->header.length, usb_tx_in_flight_);
         zx_nanosleep(zx_deadline_after(ZX_USEC(tx_endpoint_delay_)));
         usb_request_complete_t complete = {
-            .callback = nullptr,
-//TODO: Jamie            .callback = WriteComplete,
+            .callback = [](void* ctx, usb_request_t* request) {
+                reinterpret_cast<Asix88179Ethernet*>(ctx)->WriteComplete(ctx, request);
+            },
             .ctx = this,
         };
         usb_.RequestQueue(next, &complete);
@@ -394,8 +396,9 @@ void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
                     list_delete(&req_int->node);
                     req = REQ_INTERNAL_TO_USB_REQ(req_int, parent_req_size_);
                     usb_request_complete_t complete = {
-                        .callback = nullptr,
-//TODO: Jamie                        .callback = ReadComplete,
+                        .callback = [](void* ctx, usb_request_t* request) {
+                            reinterpret_cast<Asix88179Ethernet*>(ctx)->ReadComplete(ctx, request);
+                        },
                         .ctx = this,
                     };
                     usb_.RequestQueue(req, &complete);
@@ -428,8 +431,9 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
 
     usb_request_complete_t complete = {
-        .callback = nullptr,
-//TODO: Jamie        .callback = WriteComplete,
+        .callback = [](void* ctx, usb_request_t* request) {
+            reinterpret_cast<Asix88179Ethernet*>(ctx)->WriteComplete(ctx, request);
+        },
         .ctx = this,
     };
     zx_status_t status;
@@ -835,9 +839,8 @@ int Asix88179Ethernet::Thread() {
             return req->response.status;
         }
         count++;
-        /*
         HandleInterrupt(req);
-*/
+
 #if AX88179_DEBUG_VERBOSE
         if (count % 32 == 0) {
             ax88179_dump_regs();
@@ -1022,9 +1025,6 @@ zx_status_t Asix88179Ethernet::Bind(void* ctx, zx_device_t* dev) {
 
   return ZX_OK;
 }
-
-/* TODO: Jamie
-*/
 
 } // namespace eth
 
