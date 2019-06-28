@@ -247,7 +247,7 @@ zx_status_t Asix88179Ethernet::AppendToTxReq(usb_request_t* req,
                                  ethmac_netbuf_t* netbuf) {
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_off_t offset = ALIGN(req->header.length, 4);
-    if (offset + sizeof(TxHdr) + netbuf->data_size > USB_BUF_SIZE) {
+    if (offset + sizeof(TxHdr) + netbuf->data_size > kUsbBufSize) {
         return ZX_ERR_BUFFER_TOO_SMALL;
     }
     TxHdr hdr = {
@@ -269,7 +269,7 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
 
     zx_status_t status;
     fbl::AutoLock tx_lock(&tx_mutex_);
-    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
+    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= kMaxTxInFlight);
 
     if (!list_is_empty(&pending_netbuf_)) {
         // If we have any pending netbufs, add them to the recently-freed usb request
@@ -320,7 +320,7 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
         };
         usb_.RequestQueue(next, &complete);
     }
-    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
+    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= kMaxTxInFlight);
 }
 
 void Asix88179Ethernet::RequestComplete(void* ctx, usb_request_t* request) {
@@ -335,7 +335,7 @@ void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
     fbl::AutoLock lock(&mutex_);
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     if (request->response.status == ZX_OK && request->response.actual == sizeof(status_)) {
-        uint8_t status[INTR_REQ_SIZE];
+        uint8_t status[kIntrReqSize];
 
         usb_request_copy_from(request, status, sizeof(status), 0);
         if (memcmp(status_, status, sizeof(status_))) {
@@ -392,13 +392,13 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
     size_t length = netbuf->data_size;
     TxnInfo* txn = containerof(netbuf, TxnInfo, netbuf);
 
-    if (length > (AX88179_MTU + MAX_ETH_HDRS)) {
+    if (length > (kMtu + kMaxEthHdrs)) {
         zxlogf(ERROR, "ax88179: unsupported packet length %zu\n", length);
         return ZX_ERR_INVALID_ARGS;
     }
 
     fbl::AutoLock tx_lock(&tx_mutex_);
-    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
+    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= kMaxTxInFlight);
 
     usb_request_complete_t complete = {
         .callback = [](void* ctx, usb_request_t* request) {
@@ -455,7 +455,7 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
         return ZX_OK;
     }
 
-    if (usb_tx_in_flight_ == MAX_TX_IN_FLIGHT) {
+    if (usb_tx_in_flight_ == kMaxTxInFlight) {
         zxlogf(DEBUG1, "ax88179: max outstanding tx, waiting\n");
         return ZX_OK;
     }
@@ -465,7 +465,7 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
 
     usb_.RequestQueue(req, &complete);
     usb_tx_in_flight_++;
-    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= MAX_TX_IN_FLIGHT);
+    ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= kMaxTxInFlight);
     return ZX_OK;
 }
 
@@ -582,7 +582,7 @@ zx_status_t Asix88179Ethernet::SetMulticastFilter(int32_t n_addresses,
     zxlogf(INFO, "ax88179: in %s:\n", __func__);
     zx_status_t status = ZX_OK;
     multicast_filter_overflow_ = (n_addresses == ETHMAC_MULTICAST_FILTER_OVERFLOW) ||
-        (n_addresses > MAX_MULTICAST_FILTER_ADDRS);
+        (n_addresses > kMaxMulticastFilterAddrs);
     if (multicast_filter_overflow_) {
         status = SetMulticastPromisc(true);
         return status;
@@ -590,12 +590,12 @@ zx_status_t Asix88179Ethernet::SetMulticastFilter(int32_t n_addresses,
     if (address_size < n_addresses * ETH_MAC_SIZE)
         return ZX_ERR_OUT_OF_RANGE;
 
-    uint8_t filter[MULTICAST_FILTER_NBYTES];
-    memset(filter, 0, MULTICAST_FILTER_NBYTES);
+    uint8_t filter[kMulticastFilterNBytes];
+    memset(filter, 0, kMulticastFilterNBytes);
     for (int32_t i = 0; i < n_addresses; i++) {
       SetFilterBit(address_bytes + i * ETH_MAC_SIZE, filter);
     }
-    status = WriteMac(AX88179_MAC_MFA, MULTICAST_FILTER_NBYTES, &filter);
+    status = WriteMac(AX88179_MAC_MFA, kMulticastFilterNBytes, &filter);
     if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_MFA, status);
         return status;
@@ -651,7 +651,7 @@ void Asix88179Ethernet::DumpRegs() {
   READ_REG(AX88179_MAC_SMSR, 1);
   READ_REG(AX88179_MAC_CSR, 1);
   READ_REG(AX88179_MAC_RCR, 2);
-  READ_REG(AX88179_MAC_MFA, MULTICAST_FILTER_NBYTES);
+  READ_REG(AX88179_MAC_MFA, kMulticastFilterNBytes);
   READ_REG(AX88179_MAC_IPGCR, 3);
   READ_REG(AX88179_MAC_TR, 1);
   READ_REG(AX88179_MAC_MSR, 2);
@@ -776,9 +776,9 @@ int Asix88179Ethernet::Thread() {
         return status;
     }
 
-    uint8_t filter[MULTICAST_FILTER_NBYTES];
-    memset(filter, 0, MULTICAST_FILTER_NBYTES);
-    status = WriteMac(AX88179_MAC_MFA, MULTICAST_FILTER_NBYTES, &filter);
+    uint8_t filter[kMulticastFilterNBytes];
+    memset(filter, 0, kMulticastFilterNBytes);
+    status = WriteMac(AX88179_MAC_MFA, kMulticastFilterNBytes, &filter);
     if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: WriteMac to %#x failed: %d\n", AX88179_MAC_MFA, status);
         return status;
@@ -880,9 +880,9 @@ zx_status_t Asix88179Ethernet::Init() {
     rx_endpoint_delay_ = ETHMAC_INITIAL_RECV_DELAY;
     tx_endpoint_delay_ = ETHMAC_INITIAL_TRANSMIT_DELAY;
 
-    for (int i = 0; i < READ_REQ_COUNT; i++) {
+    for (int i = 0; i < kReadReqCount; i++) {
         usb_request_t* req;
-        status = usb_request_alloc(&req, USB_BUF_SIZE, bulk_in_addr, req_size);
+        status = usb_request_alloc(&req, kUsbBufSize, bulk_in_addr, req_size);
         if (status != ZX_OK) {
             Free();
             return status;
@@ -890,9 +890,9 @@ zx_status_t Asix88179Ethernet::Init() {
         status = usb_req_list_add_head(&free_read_reqs_, req, parent_req_size_);
         ZX_DEBUG_ASSERT(status == ZX_OK);
     }
-    for (int i = 0; i < WRITE_REQ_COUNT; i++) {
+    for (int i = 0; i < kWriteReqCount; i++) {
         usb_request_t* req;
-        status = usb_request_alloc(&req, USB_BUF_SIZE, bulk_out_addr, req_size);
+        status = usb_request_alloc(&req, kUsbBufSize, bulk_out_addr, req_size);
         if (status != ZX_OK) {
             Free();
             return status;
@@ -901,7 +901,7 @@ zx_status_t Asix88179Ethernet::Init() {
         ZX_DEBUG_ASSERT(status == ZX_OK);
     }
     usb_request_t* int_req;
-    status = usb_request_alloc(&int_req, INTR_REQ_SIZE, intr_addr, req_size);
+    status = usb_request_alloc(&int_req, kIntrReqSize, intr_addr, req_size);
     if (status != ZX_OK) {
         Free();
         return status;

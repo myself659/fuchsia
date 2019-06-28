@@ -15,32 +15,6 @@
 
 namespace eth {
 
-#define READ_REQ_COUNT 8
-#define WRITE_REQ_COUNT 8
-#define USB_BUF_SIZE 24576
-#define MAX_TX_IN_FLIGHT 4
-#define INTR_REQ_SIZE 8
-#define RX_HEADER_SIZE 4
-#define AX88179_MTU 1500
-#define MAX_ETH_HDRS 26
-#define MAX_MULTICAST_FILTER_ADDRS 32
-#define MULTICAST_FILTER_NBYTES 8
-
-/*
- * The constants are determined based on Pluggable gigabit Ethernet adapter(Model: USBC-E1000),
- * connected on pixelbook. At times, the device returns NRDY token when it is unable to match the
- * pace of the client driver but does not recover by sending a ERDY token within the controller's
- * time limit. ETHMAC_INITIAL_TRANSMIT_DELAY helps us avoids getting into this situation by adding
- * a delay at the beginning.
- */
-#define ETHMAC_MAX_TRANSMIT_DELAY 100
-#define ETHMAC_MAX_RECV_DELAY 100
-#define ETHMAC_TRANSMIT_DELAY 10
-#define ETHMAC_RECV_DELAY 10
-#define ETHMAC_INITIAL_TRANSMIT_DELAY 15
-#define ETHMAC_INITIAL_RECV_DELAY 0
-
-
 class Asix88179Ethernet;
 
 using DeviceType = ddk::Device<Asix88179Ethernet, ddk::Unbindable>;
@@ -122,6 +96,35 @@ public:
         },
     };
 
+
+    static const int32_t kReadReqCount = 8;
+    static const int32_t kWriteReqCount = 8;
+    static const int32_t kUsbBufSize = 24576;
+    static const int32_t kMaxTxInFlight = 4;
+    static const int32_t kIntrReqSize = 8;
+    static const int32_t kRxHeaderSize = 4;
+    static const int32_t kMtu = 1500;
+    static const int32_t kMaxEthHdrs = 26;
+    static const int32_t kMaxMulticastFilterAddrs = 32;
+    static const int32_t kMulticastFilterNBytes = 8;
+
+/*
+ * The constants are determined based on Pluggable gigabit Ethernet adapter(Model: USBC-E1000),
+ * connected on pixelbook. At times, the device returns NRDY token when it is unable to match the
+ * pace of the client driver but does not recover by sending a ERDY token within the controller's
+ * time limit. ETHMAC_INITIAL_TRANSMIT_DELAY helps us avoids getting into this situation by adding
+ * a delay at the beginning.
+ */
+#define ETHMAC_MAX_TRANSMIT_DELAY 100
+#define ETHMAC_MAX_RECV_DELAY 100
+#define ETHMAC_TRANSMIT_DELAY 10
+#define ETHMAC_RECV_DELAY 10
+#define ETHMAC_INITIAL_TRANSMIT_DELAY 15
+#define ETHMAC_INITIAL_RECV_DELAY 0
+
+
+
+
     zx_status_t Init();
 
     zx_status_t ReadMac(uint8_t reg_addr, uint8_t reg_len, const void* data);
@@ -175,7 +178,7 @@ public:
     usb::UsbDevice usb_;
 
     uint8_t mac_addr_[ETH_MAC_SIZE];
-    uint8_t status_[INTR_REQ_SIZE];
+    uint8_t status_[kIntrReqSize];
     bool online_;
     bool multicast_filter_overflow_;
     uint8_t bulk_in_addr_;
