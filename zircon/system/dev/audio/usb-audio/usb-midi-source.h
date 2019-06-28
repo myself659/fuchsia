@@ -9,6 +9,7 @@
 #include <fbl/mutex.h>
 #include <fuchsia/hardware/midi/llcpp/fidl.h>
 #include <usb/usb.h>
+#include <usb/request-cpp.h>
 
 namespace audio {
 namespace usb {
@@ -21,12 +22,12 @@ class UsbMidiSource : public UsbMidiSourceBase,
                       public llcpp::fuchsia::hardware::midi::Device::Interface,
                       public ddk::EmptyProtocol<ZX_PROTOCOL_MIDI> {
 public:
-    // Workaround for problem with nested namespaces.
     using UsbDevice = ::usb::UsbDevice;
+    using UsbRequest = ::usb::Request<>;
+    using UsbRequestQueue = ::usb::RequestQueue<>;
 
     UsbMidiSource(zx_device_t* parent, const UsbDevice& usb, size_t parent_req_size)
         : UsbMidiSourceBase(parent), usb_(usb), parent_req_size_(parent_req_size) {}
-    ~UsbMidiSource();
 
     static zx_status_t Create(zx_device_t* parent, const UsbDevice& usb, int index,
                               const usb_interface_descriptor_t* intf,
@@ -53,9 +54,9 @@ private:
     UsbDevice usb_;
 
     // pool of free USB requests
-    list_node_t free_read_reqs_;
+    UsbRequestQueue free_read_reqs_;
     // list of received packets not yet read by upper layer
-    list_node_t completed_reads_;
+    UsbRequestQueue completed_reads_;
     // mutex for synchronizing access to free_read_reqs, completed_reads and open
     fbl::Mutex mutex_;
 
