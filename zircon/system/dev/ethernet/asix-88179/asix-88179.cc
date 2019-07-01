@@ -212,7 +212,7 @@ void Asix88179Ethernet::ReadComplete(void* ctx, usb_request_t* request) {
         return;
     }
 
-    fbl::AutoLock lock(&mutex_);
+    fbl::AutoLock lock(&lock_);
     if (request->response.status == ZX_ERR_IO_REFUSED) {
         zxlogf(TRACE, "ax88179: ReadComplete usb_reset_endpoint\n");
         usb_.ResetEndpoint(bulk_in_addr_);
@@ -268,7 +268,7 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
     }
 
     zx_status_t status;
-    fbl::AutoLock tx_lock(&tx_mutex_);
+    fbl::AutoLock tx_lock(&tx_lock_);
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= kMaxTxInFlight);
 
     if (!list_is_empty(&pending_netbuf_)) {
@@ -279,7 +279,7 @@ void Asix88179Ethernet::WriteComplete(void* ctx, usb_request_t* request) {
                                                  &next_txn->netbuf) == ZX_OK) {
             list_remove_head_type(&pending_netbuf_, TxnInfo, node);
             { // Lock scope
-                fbl::AutoLock lock(&mutex_);
+                fbl::AutoLock lock(&lock_);
                 if (ifc_.ops) {
                     ethmac_ifc_complete_tx(&ifc_, &next_txn->netbuf, ZX_OK);
                 }
@@ -332,7 +332,7 @@ void Asix88179Ethernet::RequestComplete(void* ctx, usb_request_t* request) {
 }
 
 void Asix88179Ethernet::HandleInterrupt(usb_request_t* request) {
-    fbl::AutoLock lock(&mutex_);
+    fbl::AutoLock lock(&lock_);
     zxlogf(SPEW, "ax88179: in %s:\n", __func__);
     if (request->response.status == ZX_OK && request->response.actual == sizeof(status_)) {
         uint8_t status[kIntrReqSize];
@@ -397,7 +397,7 @@ zx_status_t Asix88179Ethernet::EthmacQueueTx(uint32_t options, ethmac_netbuf_t* 
         return ZX_ERR_INVALID_ARGS;
     }
 
-    fbl::AutoLock tx_lock(&tx_mutex_);
+    fbl::AutoLock tx_lock(&tx_lock_);
     ZX_DEBUG_ASSERT(usb_tx_in_flight_ <= kMaxTxInFlight);
 
     usb_request_complete_t complete = {
@@ -516,7 +516,7 @@ zx_status_t Asix88179Ethernet::EthmacQuery(uint32_t options, ethmac_info_t* info
 
 void Asix88179Ethernet::EthmacStop() {
     zxlogf(SPEW, "ax88179: in %s:\n", __func__);
-    fbl::AutoLock lock(&mutex_);
+    fbl::AutoLock lock(&lock_);
     ifc_.ops = NULL;
 }
 
@@ -524,7 +524,7 @@ zx_status_t Asix88179Ethernet::EthmacStart(const ethmac_ifc_protocol_t* ifc) {
     zxlogf(SPEW, "ax88179: in %s:\n", __func__);
     zx_status_t status = ZX_OK;
 
-    fbl::AutoLock lock(&mutex_);
+    fbl::AutoLock lock(&lock_);
     if (ifc_.ops) {
         status = ZX_ERR_BAD_STATE;
     } else {
@@ -537,7 +537,7 @@ zx_status_t Asix88179Ethernet::EthmacStart(const ethmac_ifc_protocol_t* ifc) {
 
 zx_status_t Asix88179Ethernet::TwiddleRcrBit(uint16_t bit, bool on) {
     zxlogf(SPEW, "ax88179: in %s:\n", __func__);
-    uint16_t rcr_bits;
+    uint16_t rcr_bits = 0;
     zx_status_t status = ReadMac(AX88179_MAC_RCR, 2, &rcr_bits);
     if (status != ZX_OK) {
         zxlogf(ERROR, "ax88179: ReadMac from %#x failed: %d\n", AX88179_MAC_RCR, status);
@@ -610,7 +610,7 @@ zx_status_t Asix88179Ethernet::EthmacSetParam(uint32_t param,
     zxlogf(SPEW, "ax88179: in %s:\n", __func__);
     zx_status_t status = ZX_OK;
 
-    fbl::AutoLock lock(&mutex_);
+    fbl::AutoLock lock(&lock_);
 
     switch (param) {
     case ETHMAC_SETPARAM_PROMISC:
@@ -846,7 +846,7 @@ zx_status_t Asix88179Ethernet::Init() {
     uint8_t intr_addr = 0;
 
     for (auto endpoint : *interface) {
-        usb_endpoint_descriptor_t* endp = &endpoint;
+        usb_endpoint_descriptor_t* endp = &endpoint.descriptor;
         if (usb_ep_direction(endp) == USB_ENDPOINT_OUT) {
             if (usb_ep_type(endp) == USB_ENDPOINT_BULK) {
                 bulk_out_addr = endp->bEndpointAddress;

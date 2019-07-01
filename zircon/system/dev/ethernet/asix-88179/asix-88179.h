@@ -190,7 +190,7 @@ public:
     list_node_t free_write_reqs_;
 
     // Locks the usb_tx_in_flight, pending_usb_tx, and pending_netbuf lists.
-    fbl::Mutex tx_mutex_;
+    fbl::Mutex tx_lock_;
 
     // Whether a request has been queued to the USB device.
     uint8_t usb_tx_in_flight_;
@@ -209,7 +209,7 @@ public:
 
     size_t parent_req_size_;
     thrd_t thread_;
-    fbl::Mutex mutex_;
+    fbl::Mutex lock_;
 };
 
 } // namespace eth
