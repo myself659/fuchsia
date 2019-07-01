@@ -27,6 +27,7 @@ base_package_labels += [
   "//src/developer/bugreport",
   "//src/recovery/factory_reset",
   "//src/sys/netclock:netclock",
+  "//src/sys/wasm_runner:wasm_runner",
 ]
 
 cache_package_labels += []
